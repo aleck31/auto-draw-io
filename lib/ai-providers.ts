@@ -1,23 +1,16 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock"
 import { createAnthropic } from "@ai-sdk/anthropic"
-import { azure, createAzure } from "@ai-sdk/azure"
-import { createDeepSeek, deepseek } from "@ai-sdk/deepseek"
 import { createGoogleGenerativeAI, google } from "@ai-sdk/google"
 import { createOpenAI, openai } from "@ai-sdk/openai"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import { createOpenRouter } from "@openrouter/ai-sdk-provider"
-import { createOllama, ollama } from "ollama-ai-provider-v2"
 
 export type ProviderName =
     | "bedrock"
     | "openai"
     | "anthropic"
     | "google"
-    | "azure"
-    | "ollama"
     | "openrouter"
-    | "deepseek"
-    | "siliconflow"
 
 interface ModelConfig {
     model: any
@@ -31,17 +24,19 @@ export interface ClientOverrides {
     baseUrl?: string | null
     apiKey?: string | null
     modelId?: string | null
+    // Bedrock-specific AWS credentials
+    awsAccessKeyId?: string | null
+    awsSecretAccessKey?: string | null
+    awsRegion?: string | null
 }
 
 // Providers that can be used with client-provided API keys
 const ALLOWED_CLIENT_PROVIDERS: ProviderName[] = [
+    "bedrock", // Now supports client AWS credentials
     "openai",
     "anthropic",
     "google",
-    "azure",
     "openrouter",
-    "deepseek",
-    "siliconflow",
 ]
 
 // Bedrock provider options for Anthropic beta features
@@ -90,11 +85,8 @@ function parseIntSafe(
  * - ANTHROPIC_THINKING_TYPE: Anthropic thinking type (enabled)
  * - GOOGLE_THINKING_BUDGET: Google Gemini 2.5 thinking budget in tokens (1024-100000)
  * - GOOGLE_THINKING_LEVEL: Google Gemini 3 thinking level (low/high)
- * - AZURE_REASONING_EFFORT: Azure/OpenAI reasoning effort (low/medium/high)
- * - AZURE_REASONING_SUMMARY: Azure reasoning summary (none/brief/detailed)
  * - BEDROCK_REASONING_BUDGET_TOKENS: Bedrock Claude reasoning budget in tokens (1024-64000)
  * - BEDROCK_REASONING_EFFORT: Bedrock Nova reasoning effort (low/medium/high)
- * - OLLAMA_ENABLE_THINKING: Enable Ollama thinking mode (set to "true")
  */
 function buildProviderOptions(
     provider: ProviderName,
@@ -255,28 +247,6 @@ function buildProviderOptions(
             break
         }
 
-        case "azure": {
-            const reasoningEffort = process.env.AZURE_REASONING_EFFORT
-            const reasoningSummary = process.env.AZURE_REASONING_SUMMARY
-
-            if (reasoningEffort || reasoningSummary) {
-                options.azure = {}
-                if (reasoningEffort) {
-                    options.azure.reasoningEffort = reasoningEffort as
-                        | "low"
-                        | "medium"
-                        | "high"
-                }
-                if (reasoningSummary) {
-                    options.azure.reasoningSummary = reasoningSummary as
-                        | "none"
-                        | "brief"
-                        | "detailed"
-                }
-            }
-            break
-        }
-
         case "bedrock": {
             const budgetTokens = parseIntSafe(
                 process.env.BEDROCK_REASONING_BUDGET_TOKENS,
@@ -322,19 +292,8 @@ function buildProviderOptions(
             break
         }
 
-        case "ollama": {
-            const enableThinking = process.env.OLLAMA_ENABLE_THINKING
-            // Ollama supports reasoning with think: true for models like qwen3
-            if (enableThinking === "true") {
-                options.ollama = { think: true }
-            }
-            break
-        }
-
-        case "deepseek":
-        case "openrouter":
-        case "siliconflow": {
-            // These providers don't have reasoning configs in AI SDK yet
+        case "openrouter": {
+            // OpenRouter doesn't have reasoning configs in AI SDK yet
             break
         }
 
@@ -351,11 +310,7 @@ const PROVIDER_ENV_VARS: Record<ProviderName, string | null> = {
     openai: "OPENAI_API_KEY",
     anthropic: "ANTHROPIC_API_KEY",
     google: "GOOGLE_GENERATIVE_AI_API_KEY",
-    azure: "AZURE_API_KEY",
-    ollama: null, // No credentials needed for local Ollama
     openrouter: "OPENROUTER_API_KEY",
-    deepseek: "DEEPSEEK_API_KEY",
-    siliconflow: "SILICONFLOW_API_KEY",
 }
 
 /**
@@ -367,20 +322,11 @@ function detectProvider(): ProviderName | null {
 
     for (const [provider, envVar] of Object.entries(PROVIDER_ENV_VARS)) {
         if (envVar === null) {
-            // Skip ollama - it doesn't require credentials
+            // Skip providers that don't require credentials
             continue
         }
         if (process.env[envVar]) {
-            // Azure requires additional config (baseURL or resourceName)
-            if (provider === "azure") {
-                const hasBaseUrl = !!process.env.AZURE_BASE_URL
-                const hasResourceName = !!process.env.AZURE_RESOURCE_NAME
-                if (hasBaseUrl || hasResourceName) {
-                    configuredProviders.push(provider as ProviderName)
-                }
-            } else {
-                configuredProviders.push(provider as ProviderName)
-            }
+            configuredProviders.push(provider as ProviderName)
         }
     }
 
@@ -402,18 +348,6 @@ function validateProviderCredentials(provider: ProviderName): void {
                 `Please set it in your .env.local file.`,
         )
     }
-
-    // Azure requires either AZURE_BASE_URL or AZURE_RESOURCE_NAME in addition to API key
-    if (provider === "azure") {
-        const hasBaseUrl = !!process.env.AZURE_BASE_URL
-        const hasResourceName = !!process.env.AZURE_RESOURCE_NAME
-        if (!hasBaseUrl && !hasResourceName) {
-            throw new Error(
-                `Azure requires either AZURE_BASE_URL or AZURE_RESOURCE_NAME to be set. ` +
-                    `Please set one in your .env.local file.`,
-            )
-        }
-    }
 }
 
 /**
@@ -428,18 +362,13 @@ function validateProviderCredentials(provider: ProviderName): void {
  * - OPENAI_BASE_URL: Custom OpenAI-compatible endpoint (optional)
  * - ANTHROPIC_API_KEY: Anthropic API key
  * - GOOGLE_GENERATIVE_AI_API_KEY: Google API key
- * - AZURE_RESOURCE_NAME, AZURE_API_KEY: Azure OpenAI credentials
  * - AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY: AWS Bedrock credentials
- * - OLLAMA_BASE_URL: Ollama server URL (optional, defaults to http://localhost:11434)
  * - OPENROUTER_API_KEY: OpenRouter API key
- * - DEEPSEEK_API_KEY: DeepSeek API key
- * - DEEPSEEK_BASE_URL: DeepSeek endpoint (optional)
- * - SILICONFLOW_API_KEY: SiliconFlow API key
- * - SILICONFLOW_BASE_URL: SiliconFlow endpoint (optional, defaults to https://api.siliconflow.com/v1)
  */
 export function getAIModel(overrides?: ClientOverrides): ModelConfig {
     // Check if client is providing their own provider override
-    const isClientOverride = !!(overrides?.provider && overrides?.apiKey)
+    const isClientOverride = !!(overrides?.provider && (overrides?.apiKey || 
+        (overrides?.provider === "bedrock" && overrides?.awsAccessKeyId && overrides?.awsSecretAccessKey)))
 
     // Use client override if provided, otherwise fall back to env vars
     const modelId = overrides?.modelId || process.env.AI_MODEL
@@ -485,15 +414,11 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
             if (configured.length === 0) {
                 throw new Error(
                     `No AI provider configured. Please set one of the following API keys in your .env.local file:\n` +
-                        `- DEEPSEEK_API_KEY for DeepSeek\n` +
                         `- OPENAI_API_KEY for OpenAI\n` +
                         `- ANTHROPIC_API_KEY for Anthropic\n` +
                         `- GOOGLE_GENERATIVE_AI_API_KEY for Google\n` +
                         `- AWS_ACCESS_KEY_ID for Bedrock\n` +
-                        `- OPENROUTER_API_KEY for OpenRouter\n` +
-                        `- AZURE_API_KEY for Azure\n` +
-                        `- SILICONFLOW_API_KEY for SiliconFlow\n` +
-                        `Or set AI_PROVIDER=ollama for local Ollama.`,
+                        `- OPENROUTER_API_KEY for OpenRouter`,
                 )
             } else {
                 throw new Error(
@@ -520,12 +445,27 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
 
     switch (provider) {
         case "bedrock": {
-            // Use credential provider chain for IAM role support (Lambda, EC2, etc.)
-            // Falls back to env vars (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) for local dev
-            const bedrockProvider = createAmazonBedrock({
-                region: process.env.AWS_REGION || "us-west-2",
-                credentialProvider: fromNodeProviderChain(),
-            })
+            // Use client-provided AWS credentials if available, otherwise use credential provider chain
+            let bedrockProvider: any
+            
+            if (overrides?.awsAccessKeyId && overrides?.awsSecretAccessKey) {
+                // Client-provided AWS credentials - use static credentials
+                bedrockProvider = createAmazonBedrock({
+                    region: overrides?.awsRegion || process.env.AWS_REGION || "us-east-1",
+                    credentialProvider: async () => ({
+                        accessKeyId: overrides.awsAccessKeyId!,
+                        secretAccessKey: overrides.awsSecretAccessKey!,
+                    }),
+                })
+            } else {
+                // Use credential provider chain for IAM role support (Lambda, EC2, etc.)
+                // Falls back to env vars (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) for local dev
+                bedrockProvider = createAmazonBedrock({
+                    region: process.env.AWS_REGION || "us-east-1",
+                    credentialProvider: fromNodeProviderChain(),
+                })
+            }
+            
             model = bedrockProvider(modelId)
             // Add Anthropic beta options if using Claude models via Bedrock
             if (modelId.includes("anthropic.claude")) {
@@ -590,37 +530,6 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
             break
         }
 
-        case "azure": {
-            const apiKey = overrides?.apiKey || process.env.AZURE_API_KEY
-            const baseURL = overrides?.baseUrl || process.env.AZURE_BASE_URL
-            const resourceName = process.env.AZURE_RESOURCE_NAME
-            // Azure requires either baseURL or resourceName to construct the endpoint
-            // resourceName constructs: https://{resourceName}.openai.azure.com/openai/v1{path}
-            if (baseURL || resourceName || overrides?.apiKey) {
-                const customAzure = createAzure({
-                    apiKey,
-                    // baseURL takes precedence over resourceName per SDK behavior
-                    ...(baseURL && { baseURL }),
-                    ...(!baseURL && resourceName && { resourceName }),
-                })
-                model = customAzure(modelId)
-            } else {
-                model = azure(modelId)
-            }
-            break
-        }
-
-        case "ollama":
-            if (process.env.OLLAMA_BASE_URL) {
-                const customOllama = createOllama({
-                    baseURL: process.env.OLLAMA_BASE_URL,
-                })
-                model = customOllama(modelId)
-            } else {
-                model = ollama(modelId)
-            }
-            break
-
         case "openrouter": {
             const apiKey = overrides?.apiKey || process.env.OPENROUTER_API_KEY
             const baseURL =
@@ -633,38 +542,9 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
             break
         }
 
-        case "deepseek": {
-            const apiKey = overrides?.apiKey || process.env.DEEPSEEK_API_KEY
-            const baseURL = overrides?.baseUrl || process.env.DEEPSEEK_BASE_URL
-            if (baseURL || overrides?.apiKey) {
-                const customDeepSeek = createDeepSeek({
-                    apiKey,
-                    ...(baseURL && { baseURL }),
-                })
-                model = customDeepSeek(modelId)
-            } else {
-                model = deepseek(modelId)
-            }
-            break
-        }
-
-        case "siliconflow": {
-            const apiKey = overrides?.apiKey || process.env.SILICONFLOW_API_KEY
-            const baseURL =
-                overrides?.baseUrl ||
-                process.env.SILICONFLOW_BASE_URL ||
-                "https://api.siliconflow.com/v1"
-            const siliconflowProvider = createOpenAI({
-                apiKey,
-                baseURL,
-            })
-            model = siliconflowProvider.chat(modelId)
-            break
-        }
-
         default:
             throw new Error(
-                `Unknown AI provider: ${provider}. Supported providers: bedrock, openai, anthropic, google, azure, ollama, openrouter, deepseek, siliconflow`,
+                `Unknown AI provider: ${provider}. Supported providers: bedrock, openai, anthropic, google, openrouter`,
             )
     }
 

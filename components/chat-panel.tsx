@@ -30,10 +30,10 @@ import { formatXML, wrapWithMxFile } from "@/lib/utils"
 import { ChatMessageDisplay } from "./chat-message-display"
 
 // localStorage keys for persistence
-const STORAGE_MESSAGES_KEY = "next-ai-draw-io-messages"
-const STORAGE_XML_SNAPSHOTS_KEY = "next-ai-draw-io-xml-snapshots"
-const STORAGE_SESSION_ID_KEY = "next-ai-draw-io-session-id"
-export const STORAGE_DIAGRAM_XML_KEY = "next-ai-draw-io-diagram-xml"
+const STORAGE_MESSAGES_KEY = "auto-draw-io-messages"
+const STORAGE_XML_SNAPSHOTS_KEY = "auto-draw-io-xml-snapshots"
+const STORAGE_SESSION_ID_KEY = "auto-draw-io-session-id"
+export const STORAGE_DIAGRAM_XML_KEY = "auto-draw-io-diagram-xml"
 
 // Type for message parts (tool calls and their states)
 interface MessagePart {
@@ -825,19 +825,28 @@ Please retry with an adjusted search pattern or use display_diagram if retries a
         sendMessage(
             { parts },
             {
-                body: { xml, previousXml, sessionId },
+                body: { 
+                    xml, 
+                    previousXml, 
+                    sessionId,
+                    // Move sensitive data to request body for better security
+                    ...(config.aiProvider && {
+                        aiConfig: {
+                            provider: config.aiProvider,
+                            ...(config.aiBaseUrl && { baseUrl: config.aiBaseUrl }),
+                            ...(config.aiApiKey && { apiKey: config.aiApiKey }),
+                            ...(config.aiModel && { modelId: config.aiModel }),
+                            // Bedrock AWS credentials in body (more secure than headers)
+                            ...(config.aiProvider === "bedrock" && {
+                                ...(config.awsAccessKeyId && { awsAccessKeyId: config.awsAccessKeyId }),
+                                ...(config.awsSecretAccessKey && { awsSecretAccessKey: config.awsSecretAccessKey }),
+                                ...(config.awsRegion && { awsRegion: config.awsRegion }),
+                            }),
+                        }
+                    })
+                },
                 headers: {
                     "x-access-code": config.accessCode,
-                    ...(config.aiProvider && {
-                        "x-ai-provider": config.aiProvider,
-                        ...(config.aiBaseUrl && {
-                            "x-ai-base-url": config.aiBaseUrl,
-                        }),
-                        ...(config.aiApiKey && {
-                            "x-ai-api-key": config.aiApiKey,
-                        }),
-                        ...(config.aiModel && { "x-ai-model": config.aiModel }),
-                    }),
                 },
             },
         )
@@ -1034,7 +1043,7 @@ Please retry with an adjusted search pattern or use display_diagram if retries a
                         <div className="flex items-center gap-2">
                             <Image
                                 src="/favicon.ico"
-                                alt="Next AI Drawio"
+                                alt="Auto Draw.io"
                                 width={isMobile ? 24 : 28}
                                 height={isMobile ? 24 : 28}
                                 className="rounded"
@@ -1042,35 +1051,9 @@ Please retry with an adjusted search pattern or use display_diagram if retries a
                             <h1
                                 className={`${isMobile ? "text-sm" : "text-base"} font-semibold tracking-tight whitespace-nowrap`}
                             >
-                                Next AI Drawio
+                                Auto Draw.io
                             </h1>
                         </div>
-                        {!isMobile && (
-                            <Link
-                                href="/about"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-muted-foreground hover:text-foreground transition-colors ml-2"
-                            >
-                                About
-                            </Link>
-                        )}
-                        {!isMobile && (
-                            <Link
-                                href="/about"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                <ButtonWithTooltip
-                                    tooltipContent="Due to high usage, I have changed the model to minimax-m2 and added some usage limits. See About page for details."
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 text-amber-500 hover:text-amber-600"
-                                >
-                                    <AlertTriangle className="h-4 w-4" />
-                                </ButtonWithTooltip>
-                            </Link>
-                        )}
                     </div>
                     <div className="flex items-center gap-1">
                         <ButtonWithTooltip
@@ -1086,7 +1069,7 @@ Please retry with an adjusted search pattern or use display_diagram if retries a
                         </ButtonWithTooltip>
                         <div className="w-px h-5 bg-border mx-1" />
                         <a
-                            href="https://github.com/DayuanJiang/next-ai-draw-io"
+                            href="https://github.com/aleck31/auto-draw-io"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"

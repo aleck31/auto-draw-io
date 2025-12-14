@@ -14,8 +14,7 @@ build
 coverage
 .nyc_output
 
-# Environment variables
-.env
+# Environment variables (exclude all except example)
 .env*.local
 .env.local
 .env.development.local

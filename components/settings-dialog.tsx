@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { PasswordInput } from "@/components/ui/password-input"
 import {
     Select,
     SelectContent,
@@ -31,13 +32,16 @@ interface SettingsDialogProps {
     onToggleDarkMode: () => void
 }
 
-export const STORAGE_ACCESS_CODE_KEY = "next-ai-draw-io-access-code"
-export const STORAGE_CLOSE_PROTECTION_KEY = "next-ai-draw-io-close-protection"
-const STORAGE_ACCESS_CODE_REQUIRED_KEY = "next-ai-draw-io-access-code-required"
-export const STORAGE_AI_PROVIDER_KEY = "next-ai-draw-io-ai-provider"
-export const STORAGE_AI_BASE_URL_KEY = "next-ai-draw-io-ai-base-url"
-export const STORAGE_AI_API_KEY_KEY = "next-ai-draw-io-ai-api-key"
-export const STORAGE_AI_MODEL_KEY = "next-ai-draw-io-ai-model"
+export const STORAGE_ACCESS_CODE_KEY = "auto-draw-io-access-code"
+export const STORAGE_CLOSE_PROTECTION_KEY = "auto-draw-io-close-protection"
+const STORAGE_ACCESS_CODE_REQUIRED_KEY = "auto-draw-io-access-code-required"
+export const STORAGE_AI_PROVIDER_KEY = "auto-draw-io-ai-provider"
+export const STORAGE_AI_BASE_URL_KEY = "auto-draw-io-ai-base-url"
+export const STORAGE_AI_API_KEY_KEY = "auto-draw-io-ai-api-key"
+export const STORAGE_AI_MODEL_KEY = "auto-draw-io-ai-model"
+export const STORAGE_AWS_ACCESS_KEY_ID_KEY = "auto-draw-io-aws-access-key-id"
+export const STORAGE_AWS_SECRET_ACCESS_KEY_KEY = "auto-draw-io-aws-secret-access-key"
+export const STORAGE_AWS_REGION_KEY = "auto-draw-io-aws-region"
 
 function getStoredAccessCodeRequired(): boolean | null {
     if (typeof window === "undefined") return null
@@ -59,6 +63,7 @@ export function SettingsDialog({
     const [closeProtection, setCloseProtection] = useState(true)
     const [isVerifying, setIsVerifying] = useState(false)
     const [error, setError] = useState("")
+    const [accessCodeSaved, setAccessCodeSaved] = useState(false)
     const [accessCodeRequired, setAccessCodeRequired] = useState(
         () => getStoredAccessCodeRequired() ?? false,
     )
@@ -66,6 +71,9 @@ export function SettingsDialog({
     const [baseUrl, setBaseUrl] = useState("")
     const [apiKey, setApiKey] = useState("")
     const [modelId, setModelId] = useState("")
+    const [awsAccessKeyId, setAwsAccessKeyId] = useState("")
+    const [awsSecretAccessKey, setAwsSecretAccessKey] = useState("")
+    const [awsRegion, setAwsRegion] = useState("")
 
     useEffect(() => {
         // Only fetch if not cached in localStorage
@@ -107,8 +115,12 @@ export function SettingsDialog({
             setBaseUrl(localStorage.getItem(STORAGE_AI_BASE_URL_KEY) || "")
             setApiKey(localStorage.getItem(STORAGE_AI_API_KEY_KEY) || "")
             setModelId(localStorage.getItem(STORAGE_AI_MODEL_KEY) || "")
+            setAwsAccessKeyId(localStorage.getItem(STORAGE_AWS_ACCESS_KEY_ID_KEY) || "")
+            setAwsSecretAccessKey(localStorage.getItem(STORAGE_AWS_SECRET_ACCESS_KEY_KEY) || "")
+            setAwsRegion(localStorage.getItem(STORAGE_AWS_REGION_KEY) || "")
 
             setError("")
+            setAccessCodeSaved(false)
         }
     }, [open])
 
@@ -134,7 +146,8 @@ export function SettingsDialog({
             }
 
             localStorage.setItem(STORAGE_ACCESS_CODE_KEY, accessCode.trim())
-            onOpenChange(false)
+            setAccessCodeSaved(true)
+            setError("")
         } catch {
             setError("Failed to verify access code")
         } finally {
@@ -159,44 +172,11 @@ export function SettingsDialog({
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-2">
-                    {accessCodeRequired && (
-                        <div className="space-y-2">
-                            <Label htmlFor="access-code">Access Code</Label>
-                            <div className="flex gap-2">
-                                <Input
-                                    id="access-code"
-                                    type="password"
-                                    value={accessCode}
-                                    onChange={(e) =>
-                                        setAccessCode(e.target.value)
-                                    }
-                                    onKeyDown={handleKeyDown}
-                                    placeholder="Enter access code"
-                                    autoComplete="off"
-                                />
-                                <Button
-                                    onClick={handleSave}
-                                    disabled={isVerifying || !accessCode.trim()}
-                                >
-                                    {isVerifying ? "..." : "Save"}
-                                </Button>
-                            </div>
-                            <p className="text-[0.8rem] text-muted-foreground">
-                                Required to use this application.
-                            </p>
-                            {error && (
-                                <p className="text-[0.8rem] text-destructive">
-                                    {error}
-                                </p>
-                            )}
-                        </div>
-                    )}
                     <div className="space-y-2">
-                        <Label>AI Provider Settings</Label>
+                        <Label>LLM Provider Settings</Label>
                         <p className="text-[0.8rem] text-muted-foreground">
-                            Use your own API key to bypass usage limits. Your
-                            key is stored locally in your browser and is never
-                            stored on the server.
+                            Your key is stored locally in your browser and is 
+                            never stored on the server.
                         </p>
                         <div className="space-y-3 pt-2">
                             <div className="space-y-2">
@@ -214,11 +194,14 @@ export function SettingsDialog({
                                     }}
                                 >
                                     <SelectTrigger id="ai-provider">
-                                        <SelectValue placeholder="Use Server Default" />
+                                        <SelectValue placeholder="Built-in Configuration" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="default">
-                                            Use Server Default
+                                            Built-in Configuration
+                                        </SelectItem>
+                                        <SelectItem value="bedrock">
+                                            AWS Bedrock
                                         </SelectItem>
                                         <SelectItem value="openai">
                                             OpenAI
@@ -229,21 +212,47 @@ export function SettingsDialog({
                                         <SelectItem value="google">
                                             Google
                                         </SelectItem>
-                                        <SelectItem value="azure">
-                                            Azure OpenAI
-                                        </SelectItem>
                                         <SelectItem value="openrouter">
                                             OpenRouter
-                                        </SelectItem>
-                                        <SelectItem value="deepseek">
-                                            DeepSeek
-                                        </SelectItem>
-                                        <SelectItem value="siliconflow">
-                                            SiliconFlow
                                         </SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
+
+                            {/* Built-in Configuration - Access Code */}
+                            {(!provider || provider === "default") && accessCodeRequired && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="access-code">Access Code</Label>
+                                    <div className="flex gap-2">
+                                        <PasswordInput
+                                            id="access-code"
+                                            value={accessCode}
+                                            onChange={(value) => {
+                                                setAccessCode(value)
+                                                setAccessCodeSaved(false)
+                                            }}
+                                            placeholder="Enter access code"
+                                            onKeyDown={handleKeyDown}
+                                        />
+                                        <Button
+                                            onClick={handleSave}
+                                            disabled={isVerifying || !accessCode.trim() || accessCodeSaved}
+                                        >
+                                            {isVerifying ? "..." : accessCodeSaved ? "Saved" : "Check"}
+                                        </Button>
+                                    </div>
+                                    <p className="text-[0.8rem] text-muted-foreground">
+                                        Access Code is required to access the built-in LLM provider.
+                                    </p>
+                                    {error && (
+                                        <p className="text-[0.8rem] text-destructive">
+                                            {error}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Custom Provider Configurations */}
                             {provider && provider !== "default" && (
                                 <>
                                     <div className="space-y-2">
@@ -267,76 +276,118 @@ export function SettingsDialog({
                                                       ? "e.g., claude-sonnet-4-5"
                                                       : provider === "google"
                                                         ? "e.g., gemini-2.0-flash-exp"
-                                                        : provider ===
-                                                            "deepseek"
-                                                          ? "e.g., deepseek-chat"
+                                                        : provider === "bedrock"
+                                                          ? "e.g., anthropic.claude-sonnet-4-5-v1:0"
                                                           : "Model ID"
                                             }
                                         />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="ai-api-key">
-                                            API Key
-                                        </Label>
-                                        <Input
-                                            id="ai-api-key"
-                                            type="password"
-                                            value={apiKey}
-                                            onChange={(e) => {
-                                                setApiKey(e.target.value)
-                                                localStorage.setItem(
-                                                    STORAGE_AI_API_KEY_KEY,
-                                                    e.target.value,
-                                                )
-                                            }}
-                                            placeholder="Your API key"
-                                            autoComplete="off"
-                                        />
-                                        <p className="text-[0.8rem] text-muted-foreground">
-                                            Overrides{" "}
-                                            {provider === "openai"
-                                                ? "OPENAI_API_KEY"
-                                                : provider === "anthropic"
-                                                  ? "ANTHROPIC_API_KEY"
-                                                  : provider === "google"
-                                                    ? "GOOGLE_GENERATIVE_AI_API_KEY"
-                                                    : provider === "azure"
-                                                      ? "AZURE_API_KEY"
-                                                      : provider ===
-                                                          "openrouter"
-                                                        ? "OPENROUTER_API_KEY"
-                                                        : provider ===
-                                                            "deepseek"
-                                                          ? "DEEPSEEK_API_KEY"
-                                                          : provider ===
-                                                              "siliconflow"
-                                                            ? "SILICONFLOW_API_KEY"
-                                                            : "server API key"}
-                                        </p>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="ai-base-url">
-                                            Base URL (optional)
-                                        </Label>
-                                        <Input
-                                            id="ai-base-url"
-                                            value={baseUrl}
-                                            onChange={(e) => {
-                                                setBaseUrl(e.target.value)
-                                                localStorage.setItem(
-                                                    STORAGE_AI_BASE_URL_KEY,
-                                                    e.target.value,
-                                                )
-                                            }}
-                                            placeholder={
-                                                provider === "anthropic"
-                                                    ? "https://api.anthropic.com/v1"
-                                                    : provider === "siliconflow"
-                                                      ? "https://api.siliconflow.com/v1"
-                                                      : "Custom endpoint URL"
-                                            }
-                                        />
-                                    </div>
+
+                                    {provider === "bedrock" ? (
+                                        // Bedrock-specific AWS credentials
+                                        <>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="aws-access-key-id">
+                                                    AWS Access Key ID
+                                                </Label>
+                                                <PasswordInput
+                                                    id="aws-access-key-id"
+                                                    value={awsAccessKeyId}
+                                                    onChange={(value) => {
+                                                        setAwsAccessKeyId(value)
+                                                        localStorage.setItem(
+                                                            STORAGE_AWS_ACCESS_KEY_ID_KEY,
+                                                            value,
+                                                        )
+                                                    }}
+                                                    placeholder="AKIA..."
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="aws-secret-access-key">
+                                                    AWS Secret Access Key
+                                                </Label>
+                                                <PasswordInput
+                                                    id="aws-secret-access-key"
+                                                    value={awsSecretAccessKey}
+                                                    onChange={(value) => {
+                                                        setAwsSecretAccessKey(value)
+                                                        localStorage.setItem(
+                                                            STORAGE_AWS_SECRET_ACCESS_KEY_KEY,
+                                                            value,
+                                                        )
+                                                    }}
+                                                    placeholder="Your AWS Secret Access Key"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="aws-region">
+                                                    AWS Region
+                                                </Label>
+                                                <Input
+                                                    id="aws-region"
+                                                    value={awsRegion}
+                                                    onChange={(e) => {
+                                                        setAwsRegion(e.target.value)
+                                                        localStorage.setItem(
+                                                            STORAGE_AWS_REGION_KEY,
+                                                            e.target.value,
+                                                        )
+                                                    }}
+                                                    placeholder="e.g., us-east-1"
+                                                />
+                                                <p className="text-[0.8rem] text-muted-foreground">
+                                                    Use your own AWS credentials to bypass usage limits.
+                                                </p>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        // Standard API Key configuration for other providers
+                                        <>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="ai-api-key">
+                                                    API Key
+                                                </Label>
+                                                <PasswordInput
+                                                    id="ai-api-key"
+                                                    value={apiKey}
+                                                    onChange={(value) => {
+                                                        setApiKey(value)
+                                                        localStorage.setItem(
+                                                            STORAGE_AI_API_KEY_KEY,
+                                                            value,
+                                                        )
+                                                    }}
+                                                    placeholder="Your API key"
+                                                />
+                                                <p className="text-[0.8rem] text-muted-foreground">
+                                                    Use your own API key to bypass usage limits.
+                                                </p>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="ai-base-url">
+                                                    Base URL (optional)
+                                                </Label>
+                                                <Input
+                                                    id="ai-base-url"
+                                                    value={baseUrl}
+                                                    onChange={(e) => {
+                                                        setBaseUrl(e.target.value)
+                                                        localStorage.setItem(
+                                                            STORAGE_AI_BASE_URL_KEY,
+                                                            e.target.value,
+                                                        )
+                                                    }}
+                                                    placeholder={
+                                                        provider === "anthropic"
+                                                            ? "https://api.anthropic.com/v1"
+                                                            : "Custom endpoint URL"
+                                                    }
+                                                />
+                                            </div>
+                                        </>
+                                    )}
+
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -354,10 +405,22 @@ export function SettingsDialog({
                                             localStorage.removeItem(
                                                 STORAGE_AI_MODEL_KEY,
                                             )
+                                            localStorage.removeItem(
+                                                STORAGE_AWS_ACCESS_KEY_ID_KEY,
+                                            )
+                                            localStorage.removeItem(
+                                                STORAGE_AWS_SECRET_ACCESS_KEY_KEY,
+                                            )
+                                            localStorage.removeItem(
+                                                STORAGE_AWS_REGION_KEY,
+                                            )
                                             setProvider("")
                                             setBaseUrl("")
                                             setApiKey("")
                                             setModelId("")
+                                            setAwsAccessKeyId("")
+                                            setAwsSecretAccessKey("")
+                                            setAwsRegion("")
                                         }}
                                     >
                                         Clear Settings

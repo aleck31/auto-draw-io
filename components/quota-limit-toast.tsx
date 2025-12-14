@@ -71,15 +71,7 @@ export function QuotaLimitToast({
                     Oops — you've reached the daily{" "}
                     {isTokenLimit ? "token" : "API"} limit for this demo! As an
                     indie developer covering all the API costs myself, I have to
-                    set these limits to keep things sustainable.{" "}
-                    <Link
-                        href="/about"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-amber-600 font-medium hover:text-amber-700 hover:underline"
-                    >
-                        Learn more →
-                    </Link>
+                    set these limits to keep things sustainable.
                 </p>
                 <p>
                     <strong>Tip:</strong> You can use your own API key (click
@@ -92,7 +84,7 @@ export function QuotaLimitToast({
             {/* Action buttons */}
             <div className="flex items-center gap-2">
                 <a
-                    href="https://github.com/DayuanJiang/next-ai-draw-io"
+                    href="https://github.com/aleck31/auto-draw-io"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
@@ -101,7 +93,7 @@ export function QuotaLimitToast({
                     Self-host
                 </a>
                 <a
-                    href="https://github.com/sponsors/DayuanJiang"
+                    href="https://github.com/sponsors/aleck31"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-foreground hover:bg-muted transition-colors"

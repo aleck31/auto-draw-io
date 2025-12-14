@@ -12,7 +12,7 @@ import {
 import { useDiagram } from "@/contexts/diagram-context"
 
 const drawioBaseUrl =
-    process.env.NEXT_PUBLIC_DRAWIO_BASE_URL || "https://embed.diagrams.net"
+    process.env.AUTO_DRAWIO_BASE_URL || "https://embed.diagrams.net"
 
 export default function Home() {
     const { drawioRef, handleDiagramExport, onDrawioLoad, resetDrawioReady } =
@@ -33,7 +33,7 @@ export default function Home() {
             setDrawioUi(savedUi)
         }
 
-        const savedDarkMode = localStorage.getItem("next-ai-draw-io-dark-mode")
+        const savedDarkMode = localStorage.getItem("auto-draw-io-dark-mode")
         if (savedDarkMode !== null) {
             // Use saved preference
             const isDark = savedDarkMode === "true"
@@ -61,7 +61,7 @@ export default function Home() {
     const toggleDarkMode = () => {
         const newValue = !darkMode
         setDarkMode(newValue)
-        localStorage.setItem("next-ai-draw-io-dark-mode", String(newValue))
+        localStorage.setItem("auto-draw-io-dark-mode", String(newValue))
         document.documentElement.classList.toggle("dark", newValue)
         // Reset so onDrawioLoad fires again after remount
         resetDrawioReady()

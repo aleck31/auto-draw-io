@@ -26,7 +26,7 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-    title: "Next AI Draw.io - AI-Powered Diagram Generator",
+    title: "Auto Draw.io - AI-Powered Diagram Generator",
     description:
         "Create AWS architecture diagrams, flowcharts, and technical diagrams using AI. Free online tool integrating draw.io with AI assistance for professional diagram creation.",
     keywords: [
@@ -40,30 +40,30 @@ export const metadata: Metadata = {
         "free diagram generator",
         "online diagram maker",
     ],
-    authors: [{ name: "Next AI Draw.io" }],
-    creator: "Next AI Draw.io",
-    publisher: "Next AI Draw.io",
+    authors: [{ name: "Auto Draw.io" }],
+    creator: "Auto Draw.io",
+    publisher: "Auto Draw.io",
     metadataBase: new URL("https://next-ai-drawio.jiang.jp"),
     openGraph: {
-        title: "Next AI Draw.io - AI Diagram Generator",
+        title: "Auto Draw.io - AI Diagram Generator",
         description:
             "Create professional diagrams with AI assistance. Supports AWS architecture, flowcharts, and more.",
         type: "website",
         url: "https://next-ai-drawio.jiang.jp",
-        siteName: "Next AI Draw.io",
+        siteName: "Auto Draw.io",
         locale: "en_US",
         images: [
             {
                 url: "/architecture.png",
                 width: 1200,
                 height: 630,
-                alt: "Next AI Draw.io - AI-powered diagram creation tool",
+                alt: "Auto Draw.io - AI-powered diagram creation tool",
             },
         ],
     },
     twitter: {
         card: "summary_large_image",
-        title: "Next AI Draw.io - AI Diagram Generator",
+        title: "Auto Draw.io - AI Diagram Generator",
         description:
             "Create professional diagrams with AI assistance. Free, no login required.",
         images: ["/architecture.png"],
@@ -92,7 +92,7 @@ export default function RootLayout({
     const jsonLd = {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
-        name: "Next AI Draw.io",
+        name: "Auto Draw.io",
         applicationCategory: "DesignApplication",
         operatingSystem: "Web Browser",
         description:

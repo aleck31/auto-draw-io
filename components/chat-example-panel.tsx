@@ -127,11 +127,10 @@ export default function ExamplePanel({
 
                 <div className="grid gap-2">
                     <ExampleCard
-                        icon={<FileText className="w-4 h-4 text-primary" />}
-                        title="Paper to Diagram"
-                        description="Upload .pdf, .txt, .md, .json, .csv, .py, .js, .ts and more"
-                        onClick={handlePdfExample}
-                        isNew
+                        icon={<Cloud className="w-4 h-4 text-primary" />}
+                        title="AWS Architecture"
+                        description="Create a cloud architecture diagram with AWS icons"
+                        onClick={handleReplicateArchitecture}
                     />
 
                     <ExampleCard
@@ -144,13 +143,6 @@ export default function ExamplePanel({
                             )
                             setFiles([])
                         }}
-                    />
-
-                    <ExampleCard
-                        icon={<Cloud className="w-4 h-4 text-primary" />}
-                        title="AWS Architecture"
-                        description="Create a cloud architecture diagram with AWS icons"
-                        onClick={handleReplicateArchitecture}
                     />
 
                     <ExampleCard
@@ -168,6 +160,14 @@ export default function ExamplePanel({
                             setInput("Draw a cat for me")
                             setFiles([])
                         }}
+                    />
+
+                    <ExampleCard
+                        icon={<FileText className="w-4 h-4 text-primary" />}
+                        title="Paper to Diagram"
+                        description="Upload .pdf, .txt, .md, .json, .csv, .py, .js, .ts and more"
+                        onClick={handlePdfExample}
+                        isNew
                     />
                 </div>
 

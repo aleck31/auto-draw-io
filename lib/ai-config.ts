@@ -13,6 +13,9 @@ export function getAIConfig() {
             aiBaseUrl: "",
             aiApiKey: "",
             aiModel: "",
+            awsAccessKeyId: "",
+            awsSecretAccessKey: "",
+            awsRegion: "",
         }
     }
 
@@ -22,5 +25,8 @@ export function getAIConfig() {
         aiBaseUrl: localStorage.getItem(STORAGE_KEYS.aiBaseUrl) || "",
         aiApiKey: localStorage.getItem(STORAGE_KEYS.aiApiKey) || "",
         aiModel: localStorage.getItem(STORAGE_KEYS.aiModel) || "",
+        awsAccessKeyId: localStorage.getItem(STORAGE_KEYS.awsAccessKeyId) || "",
+        awsSecretAccessKey: localStorage.getItem(STORAGE_KEYS.awsSecretAccessKey) || "",
+        awsRegion: localStorage.getItem(STORAGE_KEYS.awsRegion) || "",
     }
 }

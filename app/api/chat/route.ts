@@ -173,7 +173,7 @@ async function handleChatRequest(req: Request): Promise<Response> {
         }
     }
 
-    const { messages, xml, previousXml, sessionId } = await req.json()
+    const { messages, xml, previousXml, sessionId, aiConfig } = await req.json()
 
     // Get user IP for Langfuse tracking
     const forwardedFor = req.headers.get("x-forwarded-for")
@@ -221,13 +221,8 @@ async function handleChatRequest(req: Request): Promise<Response> {
     }
     // === CACHE CHECK END ===
 
-    // Read client AI provider overrides from headers
-    const clientOverrides = {
-        provider: req.headers.get("x-ai-provider"),
-        baseUrl: req.headers.get("x-ai-base-url"),
-        apiKey: req.headers.get("x-ai-api-key"),
-        modelId: req.headers.get("x-ai-model"),
-    }
+    // Read client AI provider overrides from request body (more secure than headers)
+    const clientOverrides = aiConfig || {}
 
     // Get AI model with optional client overrides
     const { model, providerOptions, headers, modelId } =

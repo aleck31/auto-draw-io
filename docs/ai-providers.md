@@ -1,6 +1,6 @@
 # AI Provider Configuration
 
-This guide explains how to configure different AI model providers for next-ai-draw-io.
+This guide explains how to configure different AI model providers for auto-draw-io.
 
 ## Quick Start
 
@@ -11,18 +11,16 @@ This guide explains how to configure different AI model providers for next-ai-dr
 
 ## Supported Providers
 
-### Google Gemini
+### AWS Bedrock
 
 ```bash
-GOOGLE_GENERATIVE_AI_API_KEY=your_api_key
-AI_MODEL=gemini-2.0-flash
+AWS_REGION=us-west-2
+AWS_ACCESS_KEY_ID=your_access_key_id
+AWS_SECRET_ACCESS_KEY=your_secret_access_key
+AI_MODEL=anthropic.claude-sonnet-4-5-20250514-v1:0
 ```
 
-Optional custom endpoint:
-
-```bash
-GOOGLE_BASE_URL=https://your-custom-endpoint
-```
+Note: On AWS (Lambda, EC2 with IAM role), credentials are automatically obtained from the IAM role.
 
 ### OpenAI
 
@@ -50,65 +48,18 @@ Optional custom endpoint:
 ANTHROPIC_BASE_URL=https://your-custom-endpoint
 ```
 
-### DeepSeek
+### Google Gemini
 
 ```bash
-DEEPSEEK_API_KEY=your_api_key
-AI_MODEL=deepseek-chat
+GOOGLE_GENERATIVE_AI_API_KEY=your_api_key
+AI_MODEL=gemini-2.0-flash
 ```
 
 Optional custom endpoint:
 
 ```bash
-DEEPSEEK_BASE_URL=https://your-custom-endpoint
+GOOGLE_BASE_URL=https://your-custom-endpoint
 ```
-
-### SiliconFlow (OpenAI-compatible)
-
-```bash
-SILICONFLOW_API_KEY=your_api_key
-AI_MODEL=deepseek-ai/DeepSeek-V3  # example; use any SiliconFlow model id
-```
-
-Optional custom endpoint (defaults to the recommended domain):
-
-```bash
-SILICONFLOW_BASE_URL=https://api.siliconflow.com/v1  # or https://api.siliconflow.cn/v1
-```
-
-### Azure OpenAI
-
-```bash
-AZURE_API_KEY=your_api_key
-AZURE_RESOURCE_NAME=your-resource-name  # Required: your Azure resource name
-AI_MODEL=your-deployment-name
-```
-
-Or use a custom endpoint instead of resource name:
-
-```bash
-AZURE_API_KEY=your_api_key
-AZURE_BASE_URL=https://your-resource.openai.azure.com  # Alternative to AZURE_RESOURCE_NAME
-AI_MODEL=your-deployment-name
-```
-
-Optional reasoning configuration:
-
-```bash
-AZURE_REASONING_EFFORT=low      # Optional: low, medium, high
-AZURE_REASONING_SUMMARY=detailed  # Optional: none, brief, detailed
-```
-
-### AWS Bedrock
-
-```bash
-AWS_REGION=us-west-2
-AWS_ACCESS_KEY_ID=your_access_key_id
-AWS_SECRET_ACCESS_KEY=your_secret_access_key
-AI_MODEL=anthropic.claude-sonnet-4-5-20250514-v1:0
-```
-
-Note: On AWS (Lambda, EC2 with IAM role), credentials are automatically obtained from the IAM role.
 
 ### OpenRouter
 
@@ -123,19 +74,6 @@ Optional custom endpoint:
 OPENROUTER_BASE_URL=https://your-custom-endpoint
 ```
 
-### Ollama (Local)
-
-```bash
-AI_PROVIDER=ollama
-AI_MODEL=llama3.2
-```
-
-Optional custom URL:
-
-```bash
-OLLAMA_BASE_URL=http://localhost:11434
-```
-
 ## Auto-Detection
 
 If you only configure **one** provider's API key, the system will automatically detect and use that provider. No need to set `AI_PROVIDER`.
@@ -143,7 +81,7 @@ If you only configure **one** provider's API key, the system will automatically 
 If you configure **multiple** API keys, you must explicitly set `AI_PROVIDER`:
 
 ```bash
-AI_PROVIDER=google  # or: openai, anthropic, deepseek, siliconflow, azure, bedrock, openrouter, ollama
+AI_PROVIDER=google  # or: openai, anthropic, bedrock, openrouter
 ```
 
 ## Model Capability Requirements
@@ -153,8 +91,6 @@ This task requires exceptionally strong model capabilities, as it involves gener
 **Recommended models**:
 
 -   Claude Sonnet 4.5 / Opus 4.5
-
-**Note on Ollama**: While Ollama is supported as a provider, it's generally not practical for this use case unless you're running high-capability models like DeepSeek R1 or Qwen3-235B locally.
 
 ## Temperature Setting
 
@@ -172,7 +108,6 @@ When unset, the model uses its default behavior.
 
 ## Recommendations
 
--   **Best experience**: Use models with vision support (GPT-4o, Claude, Gemini) for image-to-diagram features
--   **Budget-friendly**: DeepSeek offers competitive pricing
--   **Privacy**: Use Ollama for fully local, offline operation (requires powerful hardware)
+-   **Best experience**: Use models with vision support (Claude, GPT-4o, Gemini) for image-to-diagram features
 -   **Flexibility**: OpenRouter provides access to many models through a single API
+-   **Budget-friendly**: DeepSeek offers competitive pricing

@@ -23,8 +23,8 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build-time argument for self-hosted draw.io URL
-ARG NEXT_PUBLIC_DRAWIO_BASE_URL=https://embed.diagrams.net
-ENV NEXT_PUBLIC_DRAWIO_BASE_URL=${NEXT_PUBLIC_DRAWIO_BASE_URL}
+ARG AUTO_DRAWIO_BASE_URL=https://embed.diagrams.net
+ENV AUTO_DRAWIO_BASE_URL=${AUTO_DRAWIO_BASE_URL}
 
 # Build Next.js application (standalone mode)
 RUN npm run build

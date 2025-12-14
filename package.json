@@ -1,5 +1,5 @@
 {
-    "name": "next-ai-draw-io",
+    "name": "auto-draw-io",
     "version": "0.4.0",
     "license": "Apache-2.0",
     "private": true,
@@ -15,8 +15,6 @@
     "dependencies": {
         "@ai-sdk/amazon-bedrock": "^3.0.62",
         "@ai-sdk/anthropic": "^2.0.44",
-        "@ai-sdk/azure": "^2.0.69",
-        "@ai-sdk/deepseek": "^1.0.30",
         "@ai-sdk/google": "^2.0.0",
         "@ai-sdk/openai": "^2.0.19",
         "@ai-sdk/react": "^2.0.107",
@@ -48,7 +46,6 @@
         "lucide-react": "^0.483.0",
         "motion": "^12.23.25",
         "next": "^16.0.7",
-        "ollama-ai-provider-v2": "^1.5.4",
         "pako": "^2.1.0",
         "prism-react-renderer": "^2.4.1",
         "react": "^19.1.2",
