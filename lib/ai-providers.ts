@@ -366,6 +366,16 @@ function validateProviderCredentials(provider: ProviderName): void {
  * - OPENROUTER_API_KEY: OpenRouter API key
  */
 export function getAIModel(overrides?: ClientOverrides): ModelConfig {
+    // SECURITY: Prevent SSRF attacks (GHSA-9qf7-mprq-9qgm)
+    // If a custom baseUrl is provided, an API key MUST also be provided.
+    // This prevents attackers from redirecting server API keys to malicious endpoints.
+    if (overrides?.baseUrl && !overrides?.apiKey) {
+        throw new Error(
+            `API key is required when using a custom base URL. ` +
+                `Please provide your own API key in Settings.`,
+        )
+    }
+
     // Check if client is providing their own provider override
     const isClientOverride = !!(overrides?.provider && (overrides?.apiKey || 
         (overrides?.provider === "bedrock" && overrides?.awsAccessKeyId && overrides?.awsSecretAccessKey)))

@@ -48,9 +48,9 @@
       <img src="./public/azure_demo.svg" alt="Azure架构图" width="480" />
     </td>
     <td width="50%" valign="top">
-      <strong>猫咪素描</strong><br />
-      <p><strong>提示词：</strong> 给我画一只可爱的猫。</p>
-      <img src="./public/cat_demo.svg" alt="猫咪绘图" width="240" />
+      <strong>卡通形象</strong><br />
+      <p><strong>提示词：</strong> 给我画一只可爱的熊猫。</p>
+      <img src="./public/panda_demo.svg" alt="熊猫绘图" width="160" />
     </td>
   </tr>
 </table>
