@@ -28,6 +28,7 @@ import { type FileData, useFileProcessor } from "@/lib/use-file-processor"
 import { useQuotaManager } from "@/lib/use-quota-manager"
 import { formatXML, wrapWithMxFile } from "@/lib/utils"
 import { ChatMessageDisplay } from "./chat-message-display"
+import { debounce } from "@/lib/utils"
 
 // localStorage keys for persistence
 const STORAGE_MESSAGES_KEY = "auto-draw-io-messages"
@@ -179,6 +180,29 @@ export default function ChatPanel({
 
     // Flag to track if we've restored from localStorage
     const hasRestoredRef = useRef(false)
+
+    // Debounced localStorage save functions to prevent blocking during streaming
+    const debouncedSaveMessages = useRef(
+        debounce((messages: any[]) => {
+            try {
+                localStorage.setItem(STORAGE_MESSAGES_KEY, JSON.stringify(messages))
+            } catch (error) {
+                console.error("Failed to save messages to localStorage:", error)
+            }
+        }, 1000)
+    )
+
+    const debouncedSaveXML = useRef(
+        debounce((xml: string) => {
+            try {
+                if (xml && xml.length > 300) {
+                    localStorage.setItem(STORAGE_DIAGRAM_XML_KEY, xml)
+                }
+            } catch (error) {
+                console.error("Failed to save XML to localStorage:", error)
+            }
+        }, 1000)
+    )
 
     // Ref to track latest chartXML for use in callbacks (avoids stale closure)
     const chartXMLRef = useRef(chartXML)
@@ -557,22 +581,16 @@ Please retry with an adjusted search pattern or use display_diagram if retries a
         }, 500)
     }, [isDrawioReady, onDisplayChart])
 
-    // Save messages to localStorage whenever they change
+    // Save messages to localStorage whenever they change (debounced)
     useEffect(() => {
         if (!hasRestoredRef.current) return
-        try {
-            localStorage.setItem(STORAGE_MESSAGES_KEY, JSON.stringify(messages))
-        } catch (error) {
-            console.error("Failed to save messages to localStorage:", error)
-        }
+        debouncedSaveMessages.current(messages)
     }, [messages])
 
-    // Save diagram XML to localStorage whenever it changes
+    // Save diagram XML to localStorage whenever it changes (debounced)
     useEffect(() => {
         if (!canSaveDiagram) return
-        if (chartXML && chartXML.length > 300) {
-            localStorage.setItem(STORAGE_DIAGRAM_XML_KEY, chartXML)
-        }
+        debouncedSaveXML.current(chartXML)
     }, [chartXML, canSaveDiagram])
 
     // Save XML snapshots to localStorage whenever they change

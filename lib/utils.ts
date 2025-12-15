@@ -800,6 +800,23 @@ export function validateAndFixXml(xml: string): {
     }
 }
 
+/**
+ * Debounce function to limit function calls during streaming
+ * @param func - Function to debounce
+ * @param delay - Delay in milliseconds
+ * @returns Debounced function
+ */
+export function debounce<T extends (...args: any[]) => any>(
+    func: T,
+    delay: number
+): (...args: Parameters<T>) => void {
+    let timeoutId: ReturnType<typeof setTimeout>
+    return (...args: Parameters<T>) => {
+        clearTimeout(timeoutId)
+        timeoutId = setTimeout(() => func(...args), delay)
+    }
+}
+
 export function extractDiagramXML(xml_svg_string: string): string {
     try {
         // 1. Parse the SVG string (using built-in DOMParser in a browser-like environment)

@@ -141,13 +141,17 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
 
         // Only add to history if this was a user-initiated export
         if (expectHistoryExportRef.current) {
-            setDiagramHistory((prev) => [
-                ...prev,
-                {
-                    svg: data.data,
-                    xml: extractedXML,
-                },
-            ])
+            setDiagramHistory((prev) => {
+                const newHistory = [
+                    ...prev,
+                    {
+                        svg: data.data,
+                        xml: extractedXML,
+                    },
+                ]
+                // Limit history to 20 entries to prevent unbounded memory growth
+                return newHistory.slice(-20)
+            })
             expectHistoryExportRef.current = false
         }
 
