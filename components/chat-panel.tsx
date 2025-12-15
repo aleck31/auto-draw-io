@@ -247,6 +247,9 @@ export default function ChatPanel({
     // Ref to track consecutive auto-retry count (reset on user action)
     const autoRetryCountRef = useRef(0)
 
+    // Ref to accumulate partial XML when output is truncated
+    const partialXmlRef = useRef<string>("")
+
     // Persist processed tool call IDs so collapsing the chat doesn't replay old tool outputs
     const processedToolCallsRef = useRef<Set<string>>(new Set())
 
@@ -406,6 +409,51 @@ ${currentXml || "No XML available"}
 \`\`\`
 
 Please retry with an adjusted search pattern or use display_diagram if retries are exhausted.`,
+                    })
+                }
+            } else if (toolCall.toolName === "append_diagram") {
+                const { xml } = toolCall.input as { xml: string }
+
+                // Append to accumulated XML
+                partialXmlRef.current += xml
+
+                // Check if XML is now complete
+                const isComplete = partialXmlRef.current.includes("</root>")
+
+                if (isComplete) {
+                    // Complete - wrap and display
+                    const finalXml = partialXmlRef.current
+                    partialXmlRef.current = "" // Reset
+
+                    const fullXml = wrapWithMxFile(finalXml)
+                    const validationError = onDisplayChart(fullXml)
+
+                    if (validationError) {
+                        addToolOutput({
+                            tool: "append_diagram",
+                            toolCallId: toolCall.toolCallId,
+                            state: "output-error",
+                            errorText: `Validation error: ${validationError}`,
+                        })
+                    } else {
+                        addToolOutput({
+                            tool: "append_diagram",
+                            toolCallId: toolCall.toolCallId,
+                            output: "Diagram completed and displayed successfully.",
+                        })
+                    }
+                } else {
+                    // Still incomplete - continue
+                    addToolOutput({
+                        tool: "append_diagram",
+                        toolCallId: toolCall.toolCallId,
+                        state: "output-error",
+                        errorText: `XML still incomplete. Call append_diagram again to continue.
+
+Current ending:
+\`\`\`
+${partialXmlRef.current.slice(-200)}
+\`\`\``,
                     })
                 }
             }
