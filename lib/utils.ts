@@ -670,6 +670,136 @@ export function validateMxCellStructure(xml: string): string | null {
     return null
 }
 
+/**
+ * Attempts to auto-fix common XML issues in draw.io diagrams
+ * @param xml - The XML string to fix
+ * @returns Object with fixed XML and list of fixes applied
+ */
+export function autoFixXml(xml: string): { fixed: string; fixes: string[] } {
+    let fixed = xml
+    const fixes: string[] = []
+
+    // 0. Fix backslash-escaped quotes (common LLM mistakes)
+    if (/\\"/.test(fixed)) {
+        fixed = fixed.replace(
+            /(\s[\w:-]+)\s*=\s*(\\"|")([\s\S]*?)\2(?=[\s/>?]|$)/g,
+            (_match, attrName, _openQuote, content) => {
+                const cleanContent = content.replace(/\\"/g, "&quot;")
+                return `${attrName}="${cleanContent}"`
+            },
+        )
+        fixes.push("Fixed backslash-escaped quotes")
+    }
+
+    // 1. Remove CDATA wrapper (MUST be before text-before-root check)
+    if (/^\s*<!\[CDATA\[/.test(fixed)) {
+        fixed = fixed.replace(/^\s*<!\[CDATA\[/, "").replace(/\]\]>\s*$/, "")
+        fixes.push("Removed CDATA wrapper")
+    }
+
+    // 2. Remove text before XML declaration or root element
+    const xmlStart = fixed.search(/<(\?xml|mxGraphModel|mxfile)/i)
+    if (xmlStart > 0 && !/^<[a-zA-Z]/.test(fixed.trim())) {
+        fixed = fixed.substring(xmlStart)
+        fixes.push("Removed text before XML root")
+    }
+
+    // 3. Fix unescaped & characters (but not valid entities)
+    const ampersandPattern = /&(?!(?:lt|gt|amp|quot|apos|#[0-9]+|#x[0-9a-fA-F]+);)/g
+    if (ampersandPattern.test(fixed)) {
+        fixed = fixed.replace(ampersandPattern, "&amp;")
+        fixes.push("Escaped unescaped & characters")
+    }
+
+    // 4. Fix <Cell> tags that should be <mxCell>
+    const hasCellTags = /<\/?Cell[\s>]/i.test(fixed)
+    if (hasCellTags) {
+        fixed = fixed.replace(/<Cell(\s)/gi, "<mxCell$1")
+        fixed = fixed.replace(/<Cell>/gi, "<mxCell>")
+        fixed = fixed.replace(/<\/Cell>/gi, "</mxCell>")
+        fixes.push("Fixed <Cell> tags to <mxCell>")
+    }
+
+    // 5. Aggressive drop-broken-cells fix (iteratively remove problematic mxCell elements)
+    let dropAttempts = 0
+    const maxDropAttempts = 50
+    
+    while (dropAttempts < maxDropAttempts) {
+        try {
+            const parser = new DOMParser()
+            const doc = parser.parseFromString(fixed, "text/xml")
+            const parseError = doc.querySelector("parsererror")
+            
+            if (!parseError) break // XML is valid now
+            
+            // Find and remove the most problematic mxCell
+            const mxCellMatch = fixed.match(/<mxCell[^>]*id="([^"]*)"[^>]*>/)
+            if (!mxCellMatch) break
+            
+            const cellId = mxCellMatch[1]
+            const cellRegex = new RegExp(`<mxCell[^>]*id="${cellId}"[^>]*>.*?</mxCell>`, 's')
+            fixed = fixed.replace(cellRegex, '')
+            
+            dropAttempts++
+            if (dropAttempts === 1) {
+                fixes.push("Dropped broken mxCell elements")
+            }
+        } catch {
+            break
+        }
+    }
+
+    return { fixed, fixes }
+}
+
+/**
+ * Validates XML and attempts auto-fix if invalid
+ * @param xml - The XML string to validate and fix
+ * @returns Object with validation result, fixed XML, and fixes applied
+ */
+export function validateAndFixXml(xml: string): {
+    isValid: boolean
+    fixed: string
+    fixes: string[]
+    error?: string
+} {
+    try {
+        // First try to parse as-is
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(xml, "text/xml")
+        const parseError = doc.querySelector("parsererror")
+        
+        if (!parseError) {
+            return { isValid: true, fixed: xml, fixes: [] }
+        }
+        
+        // Try auto-fix
+        const { fixed, fixes } = autoFixXml(xml)
+        
+        // Validate the fixed XML
+        const fixedDoc = parser.parseFromString(fixed, "text/xml")
+        const fixedParseError = fixedDoc.querySelector("parsererror")
+        
+        if (!fixedParseError) {
+            return { isValid: true, fixed, fixes }
+        }
+        
+        return {
+            isValid: false,
+            fixed: xml,
+            fixes: [],
+            error: "XML could not be auto-fixed"
+        }
+    } catch (error) {
+        return {
+            isValid: false,
+            fixed: xml,
+            fixes: [],
+            error: error instanceof Error ? error.message : "Unknown validation error"
+        }
+    }
+}
+
 export function extractDiagramXML(xml_svg_string: string): string {
     try {
         // 1. Parse the SVG string (using built-in DOMParser in a browser-like environment)

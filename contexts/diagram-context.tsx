@@ -5,7 +5,7 @@ import { createContext, useContext, useRef, useState } from "react"
 import type { DrawIoEmbedRef } from "react-drawio"
 import { STORAGE_DIAGRAM_XML_KEY } from "@/components/chat-panel"
 import type { ExportFormat } from "@/components/save-dialog"
-import { extractDiagramXML, validateMxCellStructure } from "../lib/utils"
+import { extractDiagramXML, validateMxCellStructure, validateAndFixXml } from "../lib/utils"
 
 interface DiagramContextType {
     chartXML: string
@@ -86,21 +86,36 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         chart: string,
         skipValidation?: boolean,
     ): string | null => {
-        // Validate XML structure before loading (unless skipped for internal use)
+        let finalChart = chart
+        
+        // Auto-fix and validate XML structure (unless skipped for internal use)
         if (!skipValidation) {
-            const validationError = validateMxCellStructure(chart)
+            const { isValid, fixed, fixes, error } = validateAndFixXml(chart)
+            
+            if (!isValid && error) {
+                console.warn("[loadDiagram] XML validation failed:", error)
+                return error
+            }
+            
+            if (fixes.length > 0) {
+                console.log("[loadDiagram] Applied XML fixes:", fixes)
+                finalChart = fixed
+            }
+            
+            // Additional structure validation
+            const validationError = validateMxCellStructure(finalChart)
             if (validationError) {
-                console.warn("[loadDiagram] Validation error:", validationError)
+                console.warn("[loadDiagram] Structure validation error:", validationError)
                 return validationError
             }
         }
 
         // Keep chartXML in sync even when diagrams are injected (e.g., display_diagram tool)
-        setChartXML(chart)
+        setChartXML(finalChart)
 
         if (drawioRef.current) {
             drawioRef.current.load({
-                xml: chart,
+                xml: finalChart,
             })
         }
 
