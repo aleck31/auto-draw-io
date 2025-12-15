@@ -1207,6 +1207,7 @@ Continue from EXACTLY where you stopped.`,
                     style: {
                         maxWidth: "480px",
                     },
+                    duration: 2600,
                 }}
             />
             {/* Header */}
