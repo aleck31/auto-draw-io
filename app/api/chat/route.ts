@@ -347,8 +347,16 @@ ${lastMessageText}
 
     const allMessages = [...systemMessages, ...enhancedMessages]
 
+    // Determine maxOutputTokens from client config or environment variable
+    const maxOutputTokens = clientOverrides.maxOutputTokens 
+        ? parseInt(clientOverrides.maxOutputTokens, 10)
+        : process.env.MAX_OUTPUT_TOKENS 
+        ? parseInt(process.env.MAX_OUTPUT_TOKENS, 10)
+        : undefined
+
     const result = streamText({
         model,
+        ...(maxOutputTokens && { maxOutputTokens }),
         stopWhen: stepCountIs(5),
         messages: allMessages,
         ...(providerOptions && { providerOptions }), // This now includes all reasoning configs

@@ -28,4 +28,5 @@ export const STORAGE_KEYS = {
     awsAccessKeyId: "auto-draw-io-aws-access-key-id",
     awsSecretAccessKey: "auto-draw-io-aws-secret-access-key",
     awsRegion: "auto-draw-io-aws-region",
+    maxOutputTokens: "auto-draw-io-max-output-tokens",
 } as const

@@ -32,16 +32,11 @@ interface SettingsDialogProps {
     onToggleDarkMode: () => void
 }
 
-export const STORAGE_ACCESS_CODE_KEY = "auto-draw-io-access-code"
+import { STORAGE_KEYS } from "@/lib/storage"
+
+export const STORAGE_ACCESS_CODE_KEY = STORAGE_KEYS.accessCode
 export const STORAGE_CLOSE_PROTECTION_KEY = "auto-draw-io-close-protection"
 const STORAGE_ACCESS_CODE_REQUIRED_KEY = "auto-draw-io-access-code-required"
-export const STORAGE_AI_PROVIDER_KEY = "auto-draw-io-ai-provider"
-export const STORAGE_AI_BASE_URL_KEY = "auto-draw-io-ai-base-url"
-export const STORAGE_AI_API_KEY_KEY = "auto-draw-io-ai-api-key"
-export const STORAGE_AI_MODEL_KEY = "auto-draw-io-ai-model"
-export const STORAGE_AWS_ACCESS_KEY_ID_KEY = "auto-draw-io-aws-access-key-id"
-export const STORAGE_AWS_SECRET_ACCESS_KEY_KEY = "auto-draw-io-aws-secret-access-key"
-export const STORAGE_AWS_REGION_KEY = "auto-draw-io-aws-region"
 
 function getStoredAccessCodeRequired(): boolean | null {
     if (typeof window === "undefined") return null
@@ -74,6 +69,7 @@ export function SettingsDialog({
     const [awsAccessKeyId, setAwsAccessKeyId] = useState("")
     const [awsSecretAccessKey, setAwsSecretAccessKey] = useState("")
     const [awsRegion, setAwsRegion] = useState("")
+    const [maxOutputTokens, setMaxOutputTokens] = useState("")
 
     useEffect(() => {
         // Only fetch if not cached in localStorage
@@ -111,13 +107,14 @@ export function SettingsDialog({
             setCloseProtection(storedCloseProtection !== "false")
 
             // Load AI provider settings
-            setProvider(localStorage.getItem(STORAGE_AI_PROVIDER_KEY) || "")
-            setBaseUrl(localStorage.getItem(STORAGE_AI_BASE_URL_KEY) || "")
-            setApiKey(localStorage.getItem(STORAGE_AI_API_KEY_KEY) || "")
-            setModelId(localStorage.getItem(STORAGE_AI_MODEL_KEY) || "")
-            setAwsAccessKeyId(localStorage.getItem(STORAGE_AWS_ACCESS_KEY_ID_KEY) || "")
-            setAwsSecretAccessKey(localStorage.getItem(STORAGE_AWS_SECRET_ACCESS_KEY_KEY) || "")
-            setAwsRegion(localStorage.getItem(STORAGE_AWS_REGION_KEY) || "")
+            setProvider(localStorage.getItem(STORAGE_KEYS.aiProvider) || "")
+            setBaseUrl(localStorage.getItem(STORAGE_KEYS.aiBaseUrl) || "")
+            setApiKey(localStorage.getItem(STORAGE_KEYS.aiApiKey) || "")
+            setModelId(localStorage.getItem(STORAGE_KEYS.aiModel) || "")
+            setAwsAccessKeyId(localStorage.getItem(STORAGE_KEYS.awsAccessKeyId) || "")
+            setAwsSecretAccessKey(localStorage.getItem(STORAGE_KEYS.awsSecretAccessKey) || "")
+            setAwsRegion(localStorage.getItem(STORAGE_KEYS.awsRegion) || "")
+            setMaxOutputTokens(localStorage.getItem(STORAGE_KEYS.maxOutputTokens) || "")
 
             setError("")
             setAccessCodeSaved(false)
@@ -188,7 +185,7 @@ export function SettingsDialog({
                                             value === "default" ? "" : value
                                         setProvider(actualValue)
                                         localStorage.setItem(
-                                            STORAGE_AI_PROVIDER_KEY,
+                                            STORAGE_KEYS.aiProvider,
                                             actualValue,
                                         )
                                     }}
@@ -265,7 +262,7 @@ export function SettingsDialog({
                                             onChange={(e) => {
                                                 setModelId(e.target.value)
                                                 localStorage.setItem(
-                                                    STORAGE_AI_MODEL_KEY,
+                                                    STORAGE_KEYS.aiModel,
                                                     e.target.value,
                                                 )
                                             }}
@@ -296,7 +293,7 @@ export function SettingsDialog({
                                                     onChange={(value) => {
                                                         setAwsAccessKeyId(value)
                                                         localStorage.setItem(
-                                                            STORAGE_AWS_ACCESS_KEY_ID_KEY,
+                                                            STORAGE_KEYS.awsAccessKeyId,
                                                             value,
                                                         )
                                                     }}
@@ -313,7 +310,7 @@ export function SettingsDialog({
                                                     onChange={(value) => {
                                                         setAwsSecretAccessKey(value)
                                                         localStorage.setItem(
-                                                            STORAGE_AWS_SECRET_ACCESS_KEY_KEY,
+                                                            STORAGE_KEYS.awsSecretAccessKey,
                                                             value,
                                                         )
                                                     }}
@@ -330,7 +327,7 @@ export function SettingsDialog({
                                                     onChange={(e) => {
                                                         setAwsRegion(e.target.value)
                                                         localStorage.setItem(
-                                                            STORAGE_AWS_REGION_KEY,
+                                                            STORAGE_KEYS.awsRegion,
                                                             e.target.value,
                                                         )
                                                     }}
@@ -354,7 +351,7 @@ export function SettingsDialog({
                                                     onChange={(value) => {
                                                         setApiKey(value)
                                                         localStorage.setItem(
-                                                            STORAGE_AI_API_KEY_KEY,
+                                                            STORAGE_KEYS.aiApiKey,
                                                             value,
                                                         )
                                                     }}
@@ -374,7 +371,7 @@ export function SettingsDialog({
                                                     onChange={(e) => {
                                                         setBaseUrl(e.target.value)
                                                         localStorage.setItem(
-                                                            STORAGE_AI_BASE_URL_KEY,
+                                                            STORAGE_KEYS.aiBaseUrl,
                                                             e.target.value,
                                                         )
                                                     }}
@@ -394,25 +391,25 @@ export function SettingsDialog({
                                         className="w-full"
                                         onClick={() => {
                                             localStorage.removeItem(
-                                                STORAGE_AI_PROVIDER_KEY,
+                                                STORAGE_KEYS.aiProvider,
                                             )
                                             localStorage.removeItem(
-                                                STORAGE_AI_BASE_URL_KEY,
+                                                STORAGE_KEYS.aiBaseUrl,
                                             )
                                             localStorage.removeItem(
-                                                STORAGE_AI_API_KEY_KEY,
+                                                STORAGE_KEYS.aiApiKey,
                                             )
                                             localStorage.removeItem(
-                                                STORAGE_AI_MODEL_KEY,
+                                                STORAGE_KEYS.aiModel,
                                             )
                                             localStorage.removeItem(
-                                                STORAGE_AWS_ACCESS_KEY_ID_KEY,
+                                                STORAGE_KEYS.awsAccessKeyId,
                                             )
                                             localStorage.removeItem(
-                                                STORAGE_AWS_SECRET_ACCESS_KEY_KEY,
+                                                STORAGE_KEYS.awsSecretAccessKey,
                                             )
                                             localStorage.removeItem(
-                                                STORAGE_AWS_REGION_KEY,
+                                                STORAGE_KEYS.awsRegion,
                                             )
                                             setProvider("")
                                             setBaseUrl("")
@@ -428,6 +425,28 @@ export function SettingsDialog({
                                 </>
                             )}
                         </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="max-output-tokens">
+                            Max Output Tokens (Optional)
+                        </Label>
+                        <Input
+                            id="max-output-tokens"
+                            type="number"
+                            value={maxOutputTokens}
+                            onChange={(e) => {
+                                setMaxOutputTokens(e.target.value)
+                                localStorage.setItem(
+                                    STORAGE_KEYS.maxOutputTokens,
+                                    e.target.value,
+                                )
+                            }}
+                            placeholder="e.g., 64000 (leave empty for model default)"
+                        />
+                        <p className="text-[0.8rem] text-muted-foreground">
+                            Maximum tokens the AI can generate. Helps prevent truncation.
+                        </p>
                     </div>
 
                     <div className="flex items-center justify-between">

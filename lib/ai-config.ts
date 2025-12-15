@@ -16,6 +16,7 @@ export function getAIConfig() {
             awsAccessKeyId: "",
             awsSecretAccessKey: "",
             awsRegion: "",
+            maxOutputTokens: "",
         }
     }
 
@@ -28,5 +29,6 @@ export function getAIConfig() {
         awsAccessKeyId: localStorage.getItem(STORAGE_KEYS.awsAccessKeyId) || "",
         awsSecretAccessKey: localStorage.getItem(STORAGE_KEYS.awsSecretAccessKey) || "",
         awsRegion: localStorage.getItem(STORAGE_KEYS.awsRegion) || "",
+        maxOutputTokens: localStorage.getItem(STORAGE_KEYS.maxOutputTokens) || "",
     }
 }
