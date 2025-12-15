@@ -88,37 +88,6 @@ function hasToolErrors(messages: ChatMessage[]): boolean {
     return toolParts.some((part) => part.state === TOOL_ERROR_STATE)
 }
 
-/**
- * Check if a message contains valid diagram XML.
- * Used to filter out corrupted messages when restoring from localStorage.
- * Validates both display_diagram and append_diagram tool calls.
- */
-function hasValidDiagramXml(message: {
-    parts?: Array<{ type?: string; input?: unknown }>
-}): boolean {
-    if (!message.parts) return true // No parts = valid (user messages, text-only)
-
-    const parser = new DOMParser()
-    for (const part of message.parts) {
-        // Check both display_diagram and append_diagram tools
-        const isDiagramTool =
-            part.type === "tool-display_diagram" ||
-            part.type === "tool-append_diagram"
-        const input = part.input as { xml?: string } | undefined
-        if (isDiagramTool && input?.xml) {
-            try {
-                const doc = parser.parseFromString(input.xml, "text/xml")
-                if (doc.querySelector("parsererror")) {
-                    return false
-                }
-            } catch {
-                return false
-            }
-        }
-    }
-    return true
-}
-
 export default function ChatPanel({
     isVisible,
     onToggleVisibility,
@@ -670,7 +639,6 @@ Continue from EXACTLY where you stopped.`,
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     // Restore messages and XML snapshots from localStorage on mount
-    // Validates and filters out corrupted messages to prevent crash loops
     useEffect(() => {
         if (hasRestoredRef.current) return
         hasRestoredRef.current = true
@@ -681,19 +649,7 @@ Continue from EXACTLY where you stopped.`,
             if (savedMessages) {
                 const parsed = JSON.parse(savedMessages)
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                    // Filter out messages with invalid XML to prevent crash loops
-                    const validMessages = parsed.filter((msg: any) => {
-                        return hasValidDiagramXml(msg)
-                    })
-                    
-                    if (validMessages.length < parsed.length) {
-                        const removedCount = parsed.length - validMessages.length
-                        toast.warning(
-                            `Removed ${removedCount} corrupted message(s) from chat history`
-                        )
-                    }
-                    
-                    setMessages(validMessages)
+                    setMessages(parsed)
                 }
             }
 
