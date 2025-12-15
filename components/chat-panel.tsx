@@ -274,14 +274,47 @@ export default function ChatPanel({
 
             if (toolCall.toolName === "display_diagram") {
                 const { xml } = toolCall.input as { xml: string }
+
+                // Check if XML is truncated (missing </root> indicates incomplete output)
+                const isTruncated = !xml.includes("</root>")
+
+                if (isTruncated) {
+                    // Store the partial XML for continuation via append_diagram
+                    partialXmlRef.current = xml
+
+                    // Tell LLM to use append_diagram to continue
+                    const partialEnding = partialXmlRef.current.slice(-300)
+                    addToolOutput({
+                        tool: "display_diagram",
+                        toolCallId: toolCall.toolCallId,
+                        state: "output-error",
+                        errorText: `Output was truncated due to length limits. Use append_diagram to continue.
+
+Your output ended with:
+\`\`\`
+${partialEnding}
+\`\`\`
+
+NEXT STEP: Call append_diagram with the continuation XML.
+- Do NOT start with <mxGraphModel>, <root>, or <mxCell id="0"> (they already exist)
+- Start from EXACTLY where you stopped
+- End with the closing </root> tag to complete the diagram`,
+                    })
+                    return
+                }
+
+                // Complete XML received - use it directly
+                const finalXml = xml
+                partialXmlRef.current = "" // Reset any partial from previous truncation
+
                 if (DEBUG) {
                     console.log(
-                        `[display_diagram] Received XML length: ${xml.length}`,
+                        `[display_diagram] Received complete XML length: ${finalXml.length}`,
                     )
                 }
 
                 // Wrap raw XML with full mxfile structure for draw.io
-                const fullXml = wrapWithMxFile(xml)
+                const fullXml = wrapWithMxFile(finalXml)
 
                 // loadDiagram validates and returns error if invalid
                 const validationError = onDisplayChart(fullXml)
@@ -307,7 +340,7 @@ Please fix the XML issues and call display_diagram again with corrected XML.
 
 Your failed XML:
 \`\`\`xml
-${xml}
+${finalXml}
 \`\`\``,
                     })
                 } else {
@@ -414,6 +447,29 @@ Please retry with an adjusted search pattern or use display_diagram if retries a
             } else if (toolCall.toolName === "append_diagram") {
                 const { xml } = toolCall.input as { xml: string }
 
+                // Detect if LLM incorrectly started fresh instead of continuing
+                const isFreshStart =
+                    xml.trim().startsWith("<mxGraphModel") ||
+                    xml.trim().startsWith("<root") ||
+                    xml.trim().startsWith('<mxCell id="0"')
+
+                if (isFreshStart) {
+                    addToolOutput({
+                        tool: "append_diagram",
+                        toolCallId: toolCall.toolCallId,
+                        state: "output-error",
+                        errorText: `ERROR: You started fresh with wrapper tags. Do NOT include <mxGraphModel>, <root>, or <mxCell id="0">.
+
+Continue from EXACTLY where the partial ended:
+\`\`\`
+${partialXmlRef.current.slice(-300)}
+\`\`\`
+
+Start your continuation with the NEXT character after where it stopped.`,
+                    })
+                    return
+                }
+
                 // Append to accumulated XML
                 partialXmlRef.current += xml
 
@@ -433,13 +489,20 @@ Please retry with an adjusted search pattern or use display_diagram if retries a
                             tool: "append_diagram",
                             toolCallId: toolCall.toolCallId,
                             state: "output-error",
-                            errorText: `Validation error: ${validationError}`,
+                            errorText: `Validation error after assembly: ${validationError}
+
+Assembled XML:
+\`\`\`xml
+${finalXml.substring(0, 1000)}...
+\`\`\`
+
+Please use display_diagram with corrected XML.`,
                         })
                     } else {
                         addToolOutput({
                             tool: "append_diagram",
                             toolCallId: toolCall.toolCallId,
-                            output: "Diagram completed and displayed successfully.",
+                            output: "Diagram assembly complete and displayed successfully.",
                         })
                     }
                 } else {
@@ -448,12 +511,14 @@ Please retry with an adjusted search pattern or use display_diagram if retries a
                         tool: "append_diagram",
                         toolCallId: toolCall.toolCallId,
                         state: "output-error",
-                        errorText: `XML still incomplete. Call append_diagram again to continue.
+                        errorText: `XML still incomplete (missing </root>). Call append_diagram again to continue.
 
 Current ending:
 \`\`\`
-${partialXmlRef.current.slice(-200)}
-\`\`\``,
+${partialXmlRef.current.slice(-300)}
+\`\`\`
+
+Continue from EXACTLY where you stopped.`,
                     })
                 }
             }
@@ -517,12 +582,14 @@ ${partialXmlRef.current.slice(-200)}
             }
         },
         sendAutomaticallyWhen: ({ messages }) => {
+            const isInContinuationMode = partialXmlRef.current.length > 0
+
             const shouldRetry = hasToolErrors(
                 messages as unknown as ChatMessage[],
             )
 
             if (!shouldRetry) {
-                // No error, reset retry count
+                // No error, reset retry count and clear state
                 autoRetryCountRef.current = 0
                 if (DEBUG) {
                     console.log("[sendAutomaticallyWhen] No errors, stopping")
@@ -530,7 +597,15 @@ ${partialXmlRef.current.slice(-200)}
                 return false
             }
 
-            // Check retry count limit
+            // Continuation mode has unlimited retries (not counted against limit)
+            if (isInContinuationMode) {
+                if (DEBUG) {
+                    console.log("[sendAutomaticallyWhen] Continuation mode, allowing retry")
+                }
+                return true
+            }
+
+            // Check retry count limit for normal errors
             if (autoRetryCountRef.current >= MAX_AUTO_RETRY_COUNT) {
                 if (DEBUG) {
                     console.log(
