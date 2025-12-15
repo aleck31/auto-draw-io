@@ -275,8 +275,9 @@ export default function ChatPanel({
             if (toolCall.toolName === "display_diagram") {
                 const { xml } = toolCall.input as { xml: string }
 
-                // Check if XML is truncated (missing </root> indicates incomplete output)
-                const isTruncated = !xml.includes("</root>")
+                // Check if XML is truncated using mxCell completion detection
+                const { isMxCellXmlComplete } = await import("@/lib/utils")
+                const isTruncated = !isMxCellXmlComplete(xml)
 
                 if (isTruncated) {
                     // Store the partial XML for continuation via append_diagram
@@ -296,9 +297,9 @@ ${partialEnding}
 \`\`\`
 
 NEXT STEP: Call append_diagram with the continuation XML.
-- Do NOT start with <mxGraphModel>, <root>, or <mxCell id="0"> (they already exist)
+- Do NOT include wrapper tags - just continue the mxCell elements
 - Start from EXACTLY where you stopped
-- End with the closing </root> tag to complete the diagram`,
+- Complete the remaining mxCell elements`,
                     })
                     return
                 }
@@ -451,14 +452,15 @@ Please retry with an adjusted search pattern or use display_diagram if retries a
                 const isFreshStart =
                     xml.trim().startsWith("<mxGraphModel") ||
                     xml.trim().startsWith("<root") ||
-                    xml.trim().startsWith('<mxCell id="0"')
+                    xml.trim().startsWith('<mxCell id="0"') ||
+                    xml.trim().startsWith('<mxCell id="1"')
 
                 if (isFreshStart) {
                     addToolOutput({
                         tool: "append_diagram",
                         toolCallId: toolCall.toolCallId,
                         state: "output-error",
-                        errorText: `ERROR: You started fresh with wrapper tags. Do NOT include <mxGraphModel>, <root>, or <mxCell id="0">.
+                        errorText: `ERROR: You started fresh with wrapper tags or root cells. Do NOT include wrapper tags or root cells (id="0", id="1").
 
 Continue from EXACTLY where the partial ended:
 \`\`\`
@@ -473,8 +475,9 @@ Start your continuation with the NEXT character after where it stopped.`,
                 // Append to accumulated XML
                 partialXmlRef.current += xml
 
-                // Check if XML is now complete
-                const isComplete = partialXmlRef.current.includes("</root>")
+                // Check if XML is now complete using mxCell completion detection
+                const { isMxCellXmlComplete } = await import("@/lib/utils")
+                const isComplete = isMxCellXmlComplete(partialXmlRef.current)
 
                 if (isComplete) {
                     // Complete - wrap and display
@@ -511,7 +514,7 @@ Please use display_diagram with corrected XML.`,
                         tool: "append_diagram",
                         toolCallId: toolCall.toolCallId,
                         state: "output-error",
-                        errorText: `XML still incomplete (missing </root>). Call append_diagram again to continue.
+                        errorText: `XML still incomplete (mxCell not closed). Call append_diagram again to continue.
 
 Current ending:
 \`\`\`

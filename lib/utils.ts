@@ -108,8 +108,8 @@ export function convertToLegalXml(xmlString: string): string {
 
 /**
  * Wrap XML content with the full mxfile structure required by draw.io.
- * Handles cases where XML is just <root>, <mxGraphModel>, or already has <mxfile>.
- * @param xml - The XML string (may be partial or complete)
+ * Automatically adds root cells (id="0", id="1") and removes them if already present.
+ * @param xml - The XML string (bare mxCells or wrapped content)
  * @returns Full mxfile-wrapped XML string
  */
 export function wrapWithMxFile(xml: string): string {
@@ -127,9 +127,29 @@ export function wrapWithMxFile(xml: string): string {
         return `<mxfile><diagram name="Page-1" id="page-1">${xml}</diagram></mxfile>`
     }
 
-    // Just <root> content - extract inner content and wrap fully
-    const rootContent = xml.replace(/<\/?root>/g, "").trim()
-    return `<mxfile><diagram name="Page-1" id="page-1"><mxGraphModel><root>${rootContent}</root></mxGraphModel></diagram></mxfile>`
+    let content = xml
+    
+    // Remove existing root cells if present (for backward compatibility)
+    content = content.replace(/<mxCell\s+id=["']0["'][^>]*\/?>(?:<\/mxCell>)?/gi, "")
+    content = content.replace(/<mxCell\s+id=["']1["'][^>]*\/?>(?:<\/mxCell>)?/gi, "")
+    
+    // Remove <root> wrapper if present
+    content = content.replace(/<\/?root>/g, "").trim()
+    
+    // Add root cells automatically and wrap
+    return `<mxfile><diagram name="Page-1" id="page-1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>${content}</root></mxGraphModel></diagram></mxfile>`
+}
+
+/**
+ * Check if mxCell XML output is complete (not truncated).
+ * Complete XML ends with a self-closing tag (/>) or closing mxCell tag.
+ * @param xml - The XML string to check (can be undefined/null)
+ * @returns true if XML appears complete, false if truncated or empty
+ */
+export function isMxCellXmlComplete(xml: string | undefined | null): boolean {
+    const trimmed = xml?.trim() || ""
+    if (!trimmed) return false
+    return trimmed.endsWith("/>") || trimmed.endsWith("</mxCell>")
 }
 
 /**
