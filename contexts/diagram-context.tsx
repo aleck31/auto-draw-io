@@ -5,7 +5,7 @@ import { createContext, useContext, useRef, useState } from "react"
 import type { DrawIoEmbedRef } from "react-drawio"
 import { STORAGE_DIAGRAM_XML_KEY } from "@/components/chat-panel"
 import type { ExportFormat } from "@/components/save-dialog"
-import { extractDiagramXML, validateMxCellStructure, validateAndFixXml } from "../lib/utils"
+import { extractDiagramXML, validateAndFixXml } from "../lib/utils"
 
 interface DiagramContextType {
     chartXML: string
@@ -86,36 +86,34 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         chart: string,
         skipValidation?: boolean,
     ): string | null => {
-        let finalChart = chart
-        
-        // Auto-fix and validate XML structure (unless skipped for internal use)
+        let xmlToLoad = chart
+
+        // Validate XML structure before loading (unless skipped for internal use)
         if (!skipValidation) {
-            const { isValid, fixed, fixes, error } = validateAndFixXml(chart)
-            
-            if (!isValid && error) {
-                console.warn("[loadDiagram] XML validation failed:", error)
-                return error
+            const validation = validateAndFixXml(chart)
+            if (!validation.valid) {
+                console.warn(
+                    "[loadDiagram] Validation error:",
+                    validation.error,
+                )
+                return validation.error
             }
-            
-            if (fixes.length > 0) {
-                console.log("[loadDiagram] Applied XML fixes:", fixes)
-                finalChart = fixed
-            }
-            
-            // Additional structure validation
-            const validationError = validateMxCellStructure(finalChart)
-            if (validationError) {
-                console.warn("[loadDiagram] Structure validation error:", validationError)
-                return validationError
+            // Use fixed XML if auto-fix was applied
+            if (validation.fixed) {
+                console.log(
+                    "[loadDiagram] Auto-fixed XML issues:",
+                    validation.fixes,
+                )
+                xmlToLoad = validation.fixed
             }
         }
 
         // Keep chartXML in sync even when diagrams are injected (e.g., display_diagram tool)
-        setChartXML(finalChart)
+        setChartXML(xmlToLoad)
 
         if (drawioRef.current) {
             drawioRef.current.load({
-                xml: finalChart,
+                xml: xmlToLoad,
             })
         }
 
@@ -140,6 +138,8 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         setLatestSvg(data.data)
 
         // Only add to history if this was a user-initiated export
+        // Limit to 20 entries to prevent memory leaks during long sessions
+        const MAX_HISTORY_SIZE = 20
         if (expectHistoryExportRef.current) {
             setDiagramHistory((prev) => {
                 const newHistory = [
@@ -149,8 +149,8 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
                         xml: extractedXML,
                     },
                 ]
-                // Limit history to 20 entries to prevent unbounded memory growth
-                return newHistory.slice(-20)
+                // Keep only the last MAX_HISTORY_SIZE entries (circular buffer)
+                return newHistory.slice(-MAX_HISTORY_SIZE)
             })
             expectHistoryExportRef.current = false
         }

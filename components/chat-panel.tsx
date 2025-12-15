@@ -222,6 +222,10 @@ export default function ChatPanel({
     // Persist processed tool call IDs so collapsing the chat doesn't replay old tool outputs
     const processedToolCallsRef = useRef<Set<string>>(new Set())
 
+    // Store original XML for edit_diagram streaming - shared between streaming preview and tool handler
+    // Key: toolCallId, Value: original XML before any operations applied
+    const editDiagramOriginalXmlRef = useRef<Map<string, string>>(new Map())
+
     const {
         messages,
         sendMessage,
@@ -342,27 +346,22 @@ ${finalXml}
 
                 let currentXml = ""
                 try {
-                    console.log("[edit_diagram] Starting...")
-                    // Use chartXML from ref directly - more reliable than export
-                    // especially on Vercel where DrawIO iframe may have latency issues
-                    // Using ref to avoid stale closure in callback
-                    const cachedXML = chartXMLRef.current
-                    if (cachedXML) {
-                        currentXml = cachedXML
-                        console.log(
-                            "[edit_diagram] Using cached chartXML, length:",
-                            currentXml.length,
-                        )
+                    // Use the original XML captured during streaming (shared with chat-message-display)
+                    // This ensures we apply operations to the same base XML that streaming used
+                    const originalXml = editDiagramOriginalXmlRef.current.get(
+                        toolCall.toolCallId,
+                    )
+                    if (originalXml) {
+                        currentXml = originalXml
                     } else {
-                        // Fallback to export only if no cached XML
-                        console.log(
-                            "[edit_diagram] No cached XML, fetching from DrawIO...",
-                        )
-                        currentXml = await onFetchChart(false)
-                        console.log(
-                            "[edit_diagram] Got XML from export, length:",
-                            currentXml.length,
-                        )
+                        // Fallback: use chartXML from ref if streaming didn't capture original
+                        const cachedXML = chartXMLRef.current
+                        if (cachedXML) {
+                            currentXml = cachedXML
+                        } else {
+                            // Last resort: export from iframe
+                            currentXml = await onFetchChart(false)
+                        }
                     }
 
                     const { applyDiagramOperations } = await import(
@@ -393,6 +392,10 @@ ${currentXml}
 
 Please check the cell IDs and retry.`,
                         })
+                        // Clean up the shared original XML ref
+                        editDiagramOriginalXmlRef.current.delete(
+                            toolCall.toolCallId,
+                        )
                         return
                     }
 
@@ -416,6 +419,10 @@ ${currentXml}
 
 Please fix the operations to avoid structural issues.`,
                         })
+                        // Clean up the shared original XML ref
+                        editDiagramOriginalXmlRef.current.delete(
+                            toolCall.toolCallId,
+                        )
                         return
                     }
                     onExport()
@@ -424,7 +431,10 @@ Please fix the operations to avoid structural issues.`,
                         toolCallId: toolCall.toolCallId,
                         output: `Successfully applied ${operations.length} operation(s) to the diagram.`,
                     })
-                    console.log("[edit_diagram] Success")
+                    // Clean up the shared original XML ref
+                    editDiagramOriginalXmlRef.current.delete(
+                        toolCall.toolCallId,
+                    )
                 } catch (error) {
                     console.error("[edit_diagram] Failed:", error)
 
@@ -444,6 +454,10 @@ ${currentXml || "No XML available"}
 
 Please check cell IDs and retry, or use display_diagram to regenerate.`,
                     })
+                    // Clean up the shared original XML ref even on error
+                    editDiagramOriginalXmlRef.current.delete(
+                        toolCall.toolCallId,
+                    )
                 }
             } else if (toolCall.toolName === "append_diagram") {
                 const { xml } = toolCall.input as { xml: string }
@@ -1287,6 +1301,7 @@ Continue from EXACTLY where you stopped.`,
                     setInput={setInput}
                     setFiles={handleFileChange}
                     processedToolCallsRef={processedToolCallsRef}
+                    editDiagramOriginalXmlRef={editDiagramOriginalXmlRef}
                     sessionId={sessionId}
                     onRegenerate={handleRegenerate}
                     status={status}
