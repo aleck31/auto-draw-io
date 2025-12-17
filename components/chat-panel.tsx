@@ -28,7 +28,6 @@ import { type FileData, useFileProcessor } from "@/lib/use-file-processor"
 import { useQuotaManager } from "@/lib/use-quota-manager"
 import { formatXML, wrapWithMxFile } from "@/lib/utils"
 import { ChatMessageDisplay } from "./chat-message-display"
-import { debounce } from "@/lib/utils"
 
 // localStorage keys for persistence
 const STORAGE_MESSAGES_KEY = "auto-draw-io-messages"
@@ -181,29 +180,6 @@ export default function ChatPanel({
     // Flag to track if we've restored from localStorage
     const hasRestoredRef = useRef(false)
 
-    // Debounced localStorage save functions to prevent blocking during streaming
-    const debouncedSaveMessages = useRef(
-        debounce((messages: any[]) => {
-            try {
-                localStorage.setItem(STORAGE_MESSAGES_KEY, JSON.stringify(messages))
-            } catch (error) {
-                console.error("Failed to save messages to localStorage:", error)
-            }
-        }, 1000)
-    )
-
-    const debouncedSaveXML = useRef(
-        debounce((xml: string) => {
-            try {
-                if (xml && xml.length > 300) {
-                    localStorage.setItem(STORAGE_DIAGRAM_XML_KEY, xml)
-                }
-            } catch (error) {
-                console.error("Failed to save XML to localStorage:", error)
-            }
-        }, 1000)
-    )
-
     // Ref to track latest chartXML for use in callbacks (avoids stale closure)
     const chartXMLRef = useRef(chartXML)
     useEffect(() => {
@@ -225,6 +201,11 @@ export default function ChatPanel({
     // Store original XML for edit_diagram streaming - shared between streaming preview and tool handler
     // Key: toolCallId, Value: original XML before any operations applied
     const editDiagramOriginalXmlRef = useRef<Map<string, string>>(new Map())
+
+    // Debounce timeout for localStorage writes (prevents blocking during streaming)
+    const localStorageDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const xmlStorageDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const LOCAL_STORAGE_DEBOUNCE_MS = 1000 // Save at most once per second
 
     const {
         messages,
@@ -755,13 +736,51 @@ Continue from EXACTLY where you stopped.`,
     // Save messages to localStorage whenever they change (debounced)
     useEffect(() => {
         if (!hasRestoredRef.current) return
-        debouncedSaveMessages.current(messages)
+
+        // Clear any pending save
+        if (localStorageDebounceRef.current) {
+            clearTimeout(localStorageDebounceRef.current)
+        }
+
+        // Debounce: save after 1 second of no changes
+        localStorageDebounceRef.current = setTimeout(() => {
+            try {
+                localStorage.setItem(
+                    STORAGE_MESSAGES_KEY,
+                    JSON.stringify(messages),
+                )
+            } catch (error) {
+                console.error("Failed to save messages to localStorage:", error)
+            }
+        }, LOCAL_STORAGE_DEBOUNCE_MS)
+
+        return () => {
+            if (localStorageDebounceRef.current) {
+                clearTimeout(localStorageDebounceRef.current)
+            }
+        }
     }, [messages])
 
     // Save diagram XML to localStorage whenever it changes (debounced)
     useEffect(() => {
         if (!canSaveDiagram) return
-        debouncedSaveXML.current(chartXML)
+        if (!chartXML || chartXML.length <= 300) return
+
+        // Clear any pending save
+        if (xmlStorageDebounceRef.current) {
+            clearTimeout(xmlStorageDebounceRef.current)
+        }
+
+        // Debounce: save after 1 second of no changes
+        xmlStorageDebounceRef.current = setTimeout(() => {
+            localStorage.setItem(STORAGE_DIAGRAM_XML_KEY, chartXML)
+        }, LOCAL_STORAGE_DEBOUNCE_MS)
+
+        return () => {
+            if (xmlStorageDebounceRef.current) {
+                clearTimeout(xmlStorageDebounceRef.current)
+            }
+        }
     }, [chartXML, canSaveDiagram])
 
     // Save XML snapshots to localStorage whenever they change
