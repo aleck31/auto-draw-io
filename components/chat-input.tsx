@@ -321,7 +321,7 @@ export function ChatInput({
                 {/* Action bar */}
                 <div className="flex items-center justify-between px-3 py-2 border-t border-border/50">
                     {/* Left actions */}
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 overflow-x-hidden">
                         <ButtonWithTooltip
                             type="button"
                             variant="ghost"
@@ -346,7 +346,7 @@ export function ChatInput({
                     </div>
 
                     {/* Right actions */}
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 overflow-hidden justify-end">
                         <ButtonWithTooltip
                             type="button"
                             variant="ghost"
