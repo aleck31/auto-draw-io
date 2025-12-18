@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useRef, useState } from "react"
+import { createContext, useContext, useEffect, useRef, useState } from "react"
 import type { DrawIoEmbedRef } from "react-drawio"
 import { STORAGE_DIAGRAM_XML_KEY } from "@/components/chat-panel"
 import type { ExportFormat } from "@/components/save-dialog"
@@ -23,9 +23,12 @@ interface DiagramContextType {
         format: ExportFormat,
         sessionId?: string,
     ) => void
+    saveDiagramToStorage: () => Promise<void>
     isDrawioReady: boolean
     onDrawioLoad: () => void
     resetDrawioReady: () => void
+    showSaveDialog: boolean
+    setShowSaveDialog: (show: boolean) => void
 }
 
 const DiagramContext = createContext<DiagramContextType | undefined>(undefined)
@@ -37,11 +40,15 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         { svg: string; xml: string }[]
     >([])
     const [isDrawioReady, setIsDrawioReady] = useState(false)
+    const [canSaveDiagram, setCanSaveDiagram] = useState(false)
+    const [showSaveDialog, setShowSaveDialog] = useState(false)
     const hasCalledOnLoadRef = useRef(false)
     const drawioRef = useRef<DrawIoEmbedRef | null>(null)
     const resolverRef = useRef<((value: string) => void) | null>(null)
     // Track if we're expecting an export for history (user-initiated)
     const expectHistoryExportRef = useRef<boolean>(false)
+    // Track if diagram has been restored from localStorage
+    const hasDiagramRestoredRef = useRef<boolean>(false)
 
     const onDrawioLoad = () => {
         // Only set ready state once to prevent infinite loops
@@ -55,6 +62,72 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         // console.log("[DiagramContext] Resetting DrawIO ready state")
         hasCalledOnLoadRef.current = false
         setIsDrawioReady(false)
+    }
+
+    // Restore diagram XML when DrawIO becomes ready
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadDiagram uses refs internally and is stable
+    useEffect(() => {
+        // Reset restore flag when DrawIO is not ready (e.g., theme/UI change remounts it)
+        if (!isDrawioReady) {
+            hasDiagramRestoredRef.current = false
+            setCanSaveDiagram(false)
+            return
+        }
+        if (hasDiagramRestoredRef.current) return
+        hasDiagramRestoredRef.current = true
+
+        try {
+            const savedDiagramXml = localStorage.getItem(
+                STORAGE_DIAGRAM_XML_KEY,
+            )
+            if (savedDiagramXml) {
+                // Skip validation for trusted saved diagrams
+                loadDiagram(savedDiagramXml, true)
+            }
+        } catch (error) {
+            console.error("Failed to restore diagram from localStorage:", error)
+        }
+
+        // Allow saving after restore is complete
+        setTimeout(() => {
+            setCanSaveDiagram(true)
+        }, 500)
+    }, [isDrawioReady])
+
+    // Save diagram XML to localStorage whenever it changes (debounced)
+    useEffect(() => {
+        if (!canSaveDiagram) return
+        if (!chartXML || chartXML.length <= 300) return
+
+        const timeoutId = setTimeout(() => {
+            localStorage.setItem(STORAGE_DIAGRAM_XML_KEY, chartXML)
+        }, 1000)
+
+        return () => clearTimeout(timeoutId)
+    }, [chartXML, canSaveDiagram])
+
+    // Save current diagram to localStorage (used before theme/UI changes)
+    const saveDiagramToStorage = async (): Promise<void> => {
+        if (!drawioRef.current) return
+
+        try {
+            const currentXml = await Promise.race([
+                new Promise<string>((resolve) => {
+                    resolverRef.current = resolve
+                    drawioRef.current?.exportDiagram({ format: "xmlsvg" })
+                }),
+                new Promise<string>((_, reject) =>
+                    setTimeout(() => reject(new Error("Export timeout")), 2000),
+                ),
+            ])
+
+            // Only save if diagram has meaningful content (not empty template)
+            if (currentXml && currentXml.length > 300) {
+                localStorage.setItem(STORAGE_DIAGRAM_XML_KEY, currentXml)
+            }
+        } catch (error) {
+            console.error("Failed to save diagram to storage:", error)
+        }
     }
 
     // Track if we're expecting an export for file save (stores raw export data)
@@ -280,9 +353,12 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
                 handleDiagramExport,
                 clearDiagram,
                 saveDiagramToFile,
+                saveDiagramToStorage,
                 isDrawioReady,
                 onDrawioLoad,
                 resetDrawioReady,
+                showSaveDialog,
+                setShowSaveDialog,
             }}
         >
             {children}
