@@ -134,6 +134,13 @@ export default function ExamplePanel({
                     />
 
                     <ExampleCard
+                        icon={<GitBranch className="w-4 h-4 text-primary" />}
+                        title="Replicate Flowchart"
+                        description="Upload and replicate an existing flowchart"
+                        onClick={handleReplicateFlowchart}
+                    />
+
+                    <ExampleCard
                         icon={<Zap className="w-4 h-4 text-primary" />}
                         title="Animated Diagram"
                         description="Draw a transformer architecture with animated connectors"
@@ -143,13 +150,6 @@ export default function ExamplePanel({
                             )
                             setFiles([])
                         }}
-                    />
-
-                    <ExampleCard
-                        icon={<GitBranch className="w-4 h-4 text-primary" />}
-                        title="Replicate Flowchart"
-                        description="Upload and replicate an existing flowchart"
-                        onClick={handleReplicateFlowchart}
                     />
 
                     <ExampleCard
