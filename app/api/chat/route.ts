@@ -586,6 +586,139 @@ Example: If previous output ended with '<mxCell id="x" style="rounded=1', contin
                         ),
                 }),
             },
+            ...(process.env.TAVILY_API_KEY && {
+                web_search: {
+                    description: `Search the web for current information, facts, news, or documentation.
+
+Use this when you need:
+- Current/recent information not in your training data
+- Real-time data (prices, statistics, news)
+- Technical documentation or API references
+- Verification of facts or claims
+
+Returns: List of relevant web pages with titles, URLs, and content snippets.`,
+                    inputSchema: z.object({
+                        query: z
+                            .string()
+                            .describe(
+                                "Search query (be specific for better results)",
+                            ),
+                    }),
+                    execute: async ({ query }) => {
+                        try {
+                            const response = await fetch(
+                                "https://api.tavily.com/search",
+                                {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                    },
+                                    body: JSON.stringify({
+                                        api_key: process.env.TAVILY_API_KEY,
+                                        query,
+                                        max_results: 5,
+                                        include_answer: true,
+                                    }),
+                                },
+                            )
+
+                            if (!response.ok) {
+                                throw new Error(
+                                    `Tavily API error: ${response.status}`,
+                                )
+                            }
+
+                            const data = await response.json()
+
+                            // Format results for AI
+                            const results = data.results
+                                .map(
+                                    (r: any, i: number) =>
+                                        `[${i + 1}] ${r.title}\nURL: ${r.url}\n${r.content}\n`,
+                                )
+                                .join("\n")
+
+                            return {
+                                answer: data.answer || "",
+                                results,
+                                query,
+                            }
+                        } catch (error) {
+                            console.error("[web_search] Error:", error)
+                            return {
+                                error:
+                                    error instanceof Error
+                                        ? error.message
+                                        : "Search failed",
+                            }
+                        }
+                    },
+                },
+                web_extract: {
+                    description: `Extract full content from specific web pages.
+
+Use this when:
+- User provides a URL to analyze
+- Need complete article/documentation content (not just summary)
+- Search results point to relevant pages that need full content
+
+Returns: Full page content in clean Markdown format.
+
+Note: Can extract up to 3 URLs at once.`,
+                    inputSchema: z.object({
+                        urls: z
+                            .array(z.string().url())
+                            .max(3)
+                            .describe("List of URLs to extract content from"),
+                    }),
+                    execute: async ({ urls }) => {
+                        try {
+                            const response = await fetch(
+                                "https://api.tavily.com/extract",
+                                {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                    },
+                                    body: JSON.stringify({
+                                        api_key: process.env.TAVILY_API_KEY,
+                                        urls,
+                                    }),
+                                },
+                            )
+
+                            if (!response.ok) {
+                                throw new Error(
+                                    `Tavily Extract API error: ${response.status}`,
+                                )
+                            }
+
+                            const data = await response.json()
+
+                            // Format extracted content
+                            const results = data.results
+                                .map(
+                                    (r: any) =>
+                                        `# ${r.url}\n\n${r.raw_content || "Failed to extract content"}\n\n---\n`,
+                                )
+                                .join("\n")
+
+                            return {
+                                results,
+                                urls_processed: urls.length,
+                            }
+                        } catch (error) {
+                            console.error("[web_extract] Error:", error)
+                            return {
+                                error:
+                                    error instanceof Error
+                                        ? error.message
+                                        : "Extract failed",
+                            }
+                        }
+                    },
+                },
+            }),
         },
         ...(process.env.TEMPERATURE !== undefined && {
             temperature: parseFloat(process.env.TEMPERATURE),
