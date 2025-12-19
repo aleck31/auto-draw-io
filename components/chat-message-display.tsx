@@ -634,6 +634,10 @@ export function ChatMessageDisplay({
                     return "Generate Diagram"
                 case "edit_diagram":
                     return "Edit Diagram"
+                case "web_search":
+                    return "Web Search"
+                case "web_extract":
+                    return "Extract Content"
                 default:
                     return name
             }

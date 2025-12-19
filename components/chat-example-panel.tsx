@@ -1,6 +1,6 @@
 "use client"
 
-import { Cloud, FileText, GitBranch, Palette, Zap } from "lucide-react"
+import { Cloud, FileText, GitBranch, Palette, Search, Zap } from "lucide-react"
 
 interface ExampleCardProps {
     icon: React.ReactNode
@@ -167,6 +167,17 @@ export default function ExamplePanel({
                         title="Paper to Diagram"
                         description="Upload .pdf, .txt, .md, .json, .csv, .py, .js, .ts and more"
                         onClick={handlePdfExample}
+                    />
+
+                    <ExampleCard
+                        icon={<Search className="w-4 h-4 text-primary" />}
+                        title="Web Search"
+                        description="Search web for latest info and extract content from URLs"
+                        onClick={() =>
+                            setInput(
+                                "Search for the latest AWS Lambda pricing and create a comparison diagram",
+                            )
+                        }
                         isNew
                     />
                 </div>

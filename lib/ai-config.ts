@@ -17,6 +17,7 @@ export function getAIConfig() {
             awsSecretAccessKey: "",
             awsRegion: "",
             maxOutputTokens: "",
+            tavilyApiKey: "",
         }
     }
 
@@ -30,5 +31,6 @@ export function getAIConfig() {
         awsSecretAccessKey: localStorage.getItem(STORAGE_KEYS.awsSecretAccessKey) || "",
         awsRegion: localStorage.getItem(STORAGE_KEYS.awsRegion) || "",
         maxOutputTokens: localStorage.getItem(STORAGE_KEYS.maxOutputTokens) || "",
+        tavilyApiKey: localStorage.getItem(STORAGE_KEYS.tavilyApiKey) || "",
     }
 }

@@ -187,7 +187,7 @@ async function handleChatRequest(req: Request): Promise<Response> {
         }
     }
 
-    const { messages, xml, previousXml, sessionId, aiConfig } = await req.json()
+    const { messages, xml, previousXml, sessionId, aiConfig, tavilyApiKey } = await req.json()
 
     // Get user IP for Langfuse tracking
     const forwardedFor = req.headers.get("x-forwarded-for")
@@ -586,7 +586,7 @@ Example: If previous output ended with '<mxCell id="x" style="rounded=1', contin
                         ),
                 }),
             },
-            ...(process.env.TAVILY_API_KEY && {
+            ...(process.env.TAVILY_API_KEY || tavilyApiKey ? {
                 web_search: {
                     description: `Search the web for current information, facts, news, or documentation.
 
@@ -606,6 +606,7 @@ Returns: List of relevant web pages with titles, URLs, and content snippets.`,
                     }),
                     execute: async ({ query }) => {
                         try {
+                            const apiKey = tavilyApiKey || process.env.TAVILY_API_KEY
                             const response = await fetch(
                                 "https://api.tavily.com/search",
                                 {
@@ -614,7 +615,7 @@ Returns: List of relevant web pages with titles, URLs, and content snippets.`,
                                         "Content-Type": "application/json",
                                     },
                                     body: JSON.stringify({
-                                        api_key: process.env.TAVILY_API_KEY,
+                                        api_key: apiKey,
                                         query,
                                         max_results: 5,
                                         include_answer: true,
@@ -673,6 +674,7 @@ Note: Can extract up to 3 URLs at once.`,
                     }),
                     execute: async ({ urls }) => {
                         try {
+                            const apiKey = tavilyApiKey || process.env.TAVILY_API_KEY
                             const response = await fetch(
                                 "https://api.tavily.com/extract",
                                 {
@@ -681,7 +683,7 @@ Note: Can extract up to 3 URLs at once.`,
                                         "Content-Type": "application/json",
                                     },
                                     body: JSON.stringify({
-                                        api_key: process.env.TAVILY_API_KEY,
+                                        api_key: apiKey,
                                         urls,
                                     }),
                                 },
@@ -718,7 +720,7 @@ Note: Can extract up to 3 URLs at once.`,
                         }
                     },
                 },
-            }),
+            } : {}),
         },
         ...(process.env.TEMPERATURE !== undefined && {
             temperature: parseFloat(process.env.TEMPERATURE),

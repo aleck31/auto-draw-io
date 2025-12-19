@@ -29,4 +29,5 @@ export const STORAGE_KEYS = {
     awsSecretAccessKey: "auto-draw-io-aws-secret-access-key",
     awsRegion: "auto-draw-io-aws-region",
     maxOutputTokens: "auto-draw-io-max-output-tokens",
+    tavilyApiKey: "auto-draw-io-tavily-api-key",
 } as const

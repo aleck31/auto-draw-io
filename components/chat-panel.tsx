@@ -1051,7 +1051,8 @@ Continue from EXACTLY where you stopped.`,
                                 ...(config.awsRegion && { awsRegion: config.awsRegion }),
                             }),
                         }
-                    })
+                    }),
+                    ...(config.tavilyApiKey && { tavilyApiKey: config.tavilyApiKey }),
                 },
                 headers: {
                     "x-access-code": config.accessCode,

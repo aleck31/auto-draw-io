@@ -70,6 +70,7 @@ export function SettingsDialog({
     const [awsSecretAccessKey, setAwsSecretAccessKey] = useState("")
     const [awsRegion, setAwsRegion] = useState("")
     const [maxOutputTokens, setMaxOutputTokens] = useState("")
+    const [tavilyApiKey, setTavilyApiKey] = useState("")
 
     useEffect(() => {
         // Only fetch if not cached in localStorage
@@ -115,6 +116,7 @@ export function SettingsDialog({
             setAwsSecretAccessKey(localStorage.getItem(STORAGE_KEYS.awsSecretAccessKey) || "")
             setAwsRegion(localStorage.getItem(STORAGE_KEYS.awsRegion) || "")
             setMaxOutputTokens(localStorage.getItem(STORAGE_KEYS.maxOutputTokens) || "")
+            setTavilyApiKey(localStorage.getItem(STORAGE_KEYS.tavilyApiKey) || "")
 
             setError("")
             setAccessCodeSaved(false)
@@ -297,7 +299,7 @@ export function SettingsDialog({
                                                             value,
                                                         )
                                                     }}
-                                                    placeholder="AKIA..."
+                                                    placeholder="Enter your AWS Access Key ID"
                                                 />
                                             </div>
                                             <div className="space-y-2">
@@ -314,7 +316,7 @@ export function SettingsDialog({
                                                             value,
                                                         )
                                                     }}
-                                                    placeholder="Your AWS Secret Access Key"
+                                                    placeholder="Enter your AWS Secret Access Key"
                                                 />
                                             </div>
                                             <div className="space-y-2">
@@ -355,7 +357,7 @@ export function SettingsDialog({
                                                             value,
                                                         )
                                                     }}
-                                                    placeholder="Your API key"
+                                                    placeholder="Enter your API key"
                                                 />
                                                 <p className="text-[0.8rem] text-muted-foreground">
                                                     Use your own API key to bypass usage limits.
@@ -446,6 +448,27 @@ export function SettingsDialog({
                         />
                         <p className="text-[0.8rem] text-muted-foreground">
                             Maximum tokens the AI can generate. Helps prevent truncation.
+                        </p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="tavily-api-key">
+                            Tavily API Key (Optional)
+                        </Label>
+                        <PasswordInput
+                            id="tavily-api-key"
+                            value={tavilyApiKey}
+                            onChange={(value) => {
+                                setTavilyApiKey(value)
+                                localStorage.setItem(
+                                    STORAGE_KEYS.tavilyApiKey,
+                                    value,
+                                )
+                            }}
+                            placeholder="Enter your Tavily API key"
+                        />
+                        <p className="text-[0.8rem] text-muted-foreground">
+                            Enable web search and content extraction capabilities.
                         </p>
                     </div>
 
