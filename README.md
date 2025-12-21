@@ -65,8 +65,9 @@
 -   **AI推理过程显示**：查看支持模型的AI思考过程（OpenAI o1/o3、Gemini、Claude等）
 -   **图表历史记录**：全面的版本控制，跟踪所有更改，允许您查看和恢复AI编辑前的图表版本
 -   **交互式聊天界面**：与AI实时对话来完善您的图表
--   **云架构图支持**：专门支持生成云架构图（AWS、GCP、Azure）
 -   **动画连接器**：在图表元素之间创建动态动画连接器，实现更好的可视化效果
+-   **云架构图支持**：专门支持生成云架构图（AWS、GCP、Azure）
+-   **图标库智能发现**：AI可以查询30+图标库（AWS、Azure、GCP、Kubernetes等）获取准确的图标名称和样式语法
 
 ## 快速开始
 
@@ -204,10 +205,12 @@ contexts/             # React上下文提供者
 lib/                  # 工具函数和辅助程序
   ai-providers.ts     # 多提供商AI配置（支持Bedrock、OpenAI等）
   ai-config.ts        # AI配置管理
+  tools.ts            # AI工具定义（图标库、Web搜索、内容提取）
   storage.ts          # 本地存储键管理
   system-prompts.ts   # 系统提示词
   cached-responses.ts # 缓存响应管理
   utils.ts            # XML处理和转换工具
 public/               # 静态资源包括示例图片
 docs/                 # 文档
+  shape-libraries/    # 图标库文档（30+库：AWS、Azure、GCP等）
 ```

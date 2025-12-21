@@ -1258,11 +1258,16 @@ Continue from EXACTLY where you stopped.`,
                                 height={isMobile ? 24 : 28}
                                 className="rounded flex-shrink-0"
                             />
-                            <h1
-                                className={`${isMobile ? "text-sm" : "text-base"} font-semibold tracking-tight whitespace-nowrap`}
-                            >
-                                Auto Draw.io
-                            </h1>
+                            <div className="flex items-baseline gap-2">
+                                <h1
+                                    className={`${isMobile ? "text-sm" : "text-base"} font-semibold tracking-tight whitespace-nowrap`}
+                                >
+                                    Auto Draw.io
+                                </h1>
+                                <span className="text-[0.65rem] text-muted-foreground/60">
+                                    v{process.env.APP_VERSION}
+                                </span>
+                            </div>
                         </div>
                     </div>
                     <div className="flex items-center gap-1 justify-end overflow-x-hidden">
