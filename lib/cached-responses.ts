@@ -9,12 +9,7 @@ export const CACHED_EXAMPLE_RESPONSES: CachedResponse[] = [
         promptText:
             "Give me a **animated connector** diagram of transformer's architecture",
         hasImage: false,
-        xml: `<root>
-  <mxCell id="0"/>
-  <mxCell id="1" parent="0"/>
-
-
-  <mxCell id="title" value="Transformer Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;" vertex="1" parent="1">
+        xml: `<mxCell id="title" value="Transformer Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;" vertex="1" parent="1">
     <mxGeometry x="300" y="20" width="250" height="30" as="geometry"/>
   </mxCell>
 
@@ -254,18 +249,12 @@ export const CACHED_EXAMPLE_RESPONSES: CachedResponse[] = [
 
   <mxCell id="output_label" value="Outputs&#xa;(shifted right)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1;" vertex="1" parent="1">
     <mxGeometry x="660" y="530" width="100" height="30" as="geometry"/>
-  </mxCell>
-</root>`,
+  </mxCell>`,
     },
     {
         promptText: "Replicate this in aws style",
         hasImage: true,
-        xml: `<root>
-  <mxCell id="0"/>
-  <mxCell id="1" parent="0"/>
-
-
-  <mxCell id="2" value="AWS" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud;strokeColor=#232F3E;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=#232F3E;dashed=0;rounded=1;arcSize=5;" vertex="1" parent="1">
+        xml: `<mxCell id="2" value="AWS" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud;strokeColor=#232F3E;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=#232F3E;dashed=0;rounded=1;arcSize=5;" vertex="1" parent="1">
     <mxGeometry x="340" y="40" width="880" height="520" as="geometry"/>
   </mxCell>
 
@@ -324,18 +313,12 @@ export const CACHED_EXAMPLE_RESPONSES: CachedResponse[] = [
       <mxPoint x="700" y="350" as="sourcePoint"/>
       <mxPoint x="750" y="300" as="targetPoint"/>
     </mxGeometry>
-  </mxCell>
-</root>`,
+  </mxCell>`,
     },
     {
         promptText: "Replicate this flowchart.",
         hasImage: true,
-        xml: `<root>
-  <mxCell id="0"/>
-  <mxCell id="1" parent="0"/>
-
-
-  <mxCell id="2" value="Lamp doesn't work" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffcccc;strokeColor=#000000;strokeWidth=2;fontSize=18;fontStyle=0;" vertex="1" parent="1">
+        xml: `<mxCell id="2" value="Lamp doesn't work" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffcccc;strokeColor=#000000;strokeWidth=2;fontSize=18;fontStyle=0;" vertex="1" parent="1">
     <mxGeometry x="140" y="40" width="180" height="60" as="geometry"/>
   </mxCell>
 
@@ -391,16 +374,12 @@ export const CACHED_EXAMPLE_RESPONSES: CachedResponse[] = [
 
   <mxCell id="12" value="Repair lamp" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#99ff99;strokeColor=#000000;strokeWidth=2;fontSize=18;fontStyle=0;" vertex="1" parent="1">
     <mxGeometry x="130" y="650" width="200" height="60" as="geometry"/>
-  </mxCell>
-</root>`,
+  </mxCell>`,
     },
     {
         promptText: "Summarize this paper as a diagram",
         hasImage: true,
-        xml: `            <root>
-                <mxCell id="0" />
-                <mxCell id="1" parent="0" />
-                <mxCell id="title_bg" parent="1"
+        xml: `<mxCell id="title_bg" parent="1"
                     style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a237e;strokeColor=none;arcSize=8;"
                     value="" vertex="1">
                     <mxGeometry height="80" width="720" x="40" y="20" as="geometry" />
@@ -751,160 +730,86 @@ export const CACHED_EXAMPLE_RESPONSES: CachedResponse[] = [
                     value="Foundational technique for modern LLM reasoning - inspired many follow-up works including Self-Consistency, Tree-of-Thought, etc."
                     vertex="1">
                     <mxGeometry height="55" width="230" x="530" y="600" as="geometry" />
-                </mxCell>
-            </root>`,
+                </mxCell>`,
     },
     {
-        promptText: "Draw a cat for me",
+        promptText: "Draw a panda for me",
         hasImage: false,
-        xml: `<root>
-  <mxCell id="0"/>
-  <mxCell id="1" parent="0"/>
-
-
-  <mxCell id="2" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#FFE6CC;strokeColor=#000000;strokeWidth=2;" vertex="1" parent="1">
-    <mxGeometry x="300" y="150" width="120" height="120" as="geometry"/>
+        xml: `<mxCell id="2" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;" vertex="1" parent="1">
+    <mxGeometry x="320" y="120" width="140" height="140" as="geometry"/>
   </mxCell>
 
-
-  <mxCell id="3" value="" style="triangle;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#000000;strokeWidth=2;rotation=30;" vertex="1" parent="1">
-    <mxGeometry x="280" y="120" width="50" height="60" as="geometry"/>
+  <mxCell id="3" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;strokeWidth=2;" vertex="1" parent="1">
+    <mxGeometry x="300" y="100" width="50" height="50" as="geometry"/>
   </mxCell>
 
-
-  <mxCell id="4" value="" style="triangle;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#000000;strokeWidth=2;rotation=-30;" vertex="1" parent="1">
-    <mxGeometry x="390" y="120" width="50" height="60" as="geometry"/>
+  <mxCell id="4" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;strokeWidth=2;" vertex="1" parent="1">
+    <mxGeometry x="430" y="100" width="50" height="50" as="geometry"/>
   </mxCell>
 
-
-  <mxCell id="5" value="" style="triangle;whiteSpace=wrap;html=1;fillColor=#FFB6C1;strokeColor=none;rotation=30;" vertex="1" parent="1">
-    <mxGeometry x="290" y="135" width="30" height="35" as="geometry"/>
+  <mxCell id="5" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
+    <mxGeometry x="350" y="160" width="25" height="25" as="geometry"/>
   </mxCell>
 
-
-  <mxCell id="6" value="" style="triangle;whiteSpace=wrap;html=1;fillColor=#FFB6C1;strokeColor=none;rotation=-30;" vertex="1" parent="1">
-    <mxGeometry x="400" y="135" width="30" height="35" as="geometry"/>
+  <mxCell id="6" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
+    <mxGeometry x="405" y="160" width="25" height="25" as="geometry"/>
   </mxCell>
-
 
   <mxCell id="7" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
-    <mxGeometry x="325" y="185" width="15" height="15" as="geometry"/>
+    <mxGeometry x="380" y="195" width="20" height="20" as="geometry"/>
   </mxCell>
 
-
-  <mxCell id="8" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
-    <mxGeometry x="380" y="185" width="15" height="15" as="geometry"/>
-  </mxCell>
-
-
-  <mxCell id="9" value="" style="triangle;whiteSpace=wrap;html=1;fillColor=#FFB6C1;strokeColor=#000000;strokeWidth=1;rotation=180;" vertex="1" parent="1">
-    <mxGeometry x="350" y="210" width="20" height="15" as="geometry"/>
-  </mxCell>
-
-
-  <mxCell id="10" value="" style="curved=1;endArrow=none;html=1;strokeColor=#000000;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1">
+  <mxCell id="8" value="" style="curved=1;endArrow=none;html=1;strokeColor=#000000;strokeWidth=2;" edge="1" parent="1">
     <mxGeometry width="50" height="50" relative="1" as="geometry">
-      <mxPoint x="360" y="220" as="sourcePoint"/>
-      <mxPoint x="340" y="235" as="targetPoint"/>
+      <mxPoint x="390" y="210" as="sourcePoint"/>
+      <mxPoint x="370" y="225" as="targetPoint"/>
       <Array as="points">
-        <mxPoint x="355" y="230"/>
+        <mxPoint x="385" y="220"/>
       </Array>
     </mxGeometry>
   </mxCell>
 
-
-  <mxCell id="11" value="" style="curved=1;endArrow=none;html=1;strokeColor=#000000;strokeWidth=2;" edge="1" parent="1">
+  <mxCell id="9" value="" style="curved=1;endArrow=none;html=1;strokeColor=#000000;strokeWidth=2;" edge="1" parent="1">
     <mxGeometry width="50" height="50" relative="1" as="geometry">
-      <mxPoint x="360" y="220" as="sourcePoint"/>
-      <mxPoint x="380" y="235" as="targetPoint"/>
+      <mxPoint x="390" y="210" as="sourcePoint"/>
+      <mxPoint x="410" y="225" as="targetPoint"/>
       <Array as="points">
-        <mxPoint x="365" y="230"/>
+        <mxPoint x="395" y="220"/>
       </Array>
     </mxGeometry>
   </mxCell>
 
-
-  <mxCell id="12" value="" style="endArrow=none;html=1;strokeColor=#000000;strokeWidth=1.5;" edge="1" parent="1">
-    <mxGeometry width="50" height="50" relative="1" as="geometry">
-      <mxPoint x="310" y="200" as="sourcePoint"/>
-      <mxPoint x="260" y="195" as="targetPoint"/>
-    </mxGeometry>
+  <mxCell id="10" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;" vertex="1" parent="1">
+    <mxGeometry x="305" y="240" width="170" height="200" as="geometry"/>
   </mxCell>
 
-
-  <mxCell id="13" value="" style="endArrow=none;html=1;strokeColor=#000000;strokeWidth=1.5;" edge="1" parent="1">
-    <mxGeometry width="50" height="50" relative="1" as="geometry">
-      <mxPoint x="310" y="210" as="sourcePoint"/>
-      <mxPoint x="260" y="210" as="targetPoint"/>
-    </mxGeometry>
+  <mxCell id="11" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=none;" vertex="1" parent="1">
+    <mxGeometry x="340" y="270" width="100" height="140" as="geometry"/>
   </mxCell>
 
-
-  <mxCell id="14" value="" style="endArrow=none;html=1;strokeColor=#000000;strokeWidth=1.5;" edge="1" parent="1">
-    <mxGeometry width="50" height="50" relative="1" as="geometry">
-      <mxPoint x="310" y="220" as="sourcePoint"/>
-      <mxPoint x="260" y="225" as="targetPoint"/>
-    </mxGeometry>
+  <mxCell id="12" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;strokeWidth=2;" vertex="1" parent="1">
+    <mxGeometry x="260" y="280" width="60" height="60" as="geometry"/>
   </mxCell>
 
-
-  <mxCell id="15" value="" style="endArrow=none;html=1;strokeColor=#000000;strokeWidth=1.5;" edge="1" parent="1">
-    <mxGeometry width="50" height="50" relative="1" as="geometry">
-      <mxPoint x="410" y="200" as="sourcePoint"/>
-      <mxPoint x="460" y="195" as="targetPoint"/>
-    </mxGeometry>
+  <mxCell id="13" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;strokeWidth=2;" vertex="1" parent="1">
+    <mxGeometry x="460" y="280" width="60" height="60" as="geometry"/>
   </mxCell>
 
-
-  <mxCell id="16" value="" style="endArrow=none;html=1;strokeColor=#000000;strokeWidth=1.5;" edge="1" parent="1">
-    <mxGeometry width="50" height="50" relative="1" as="geometry">
-      <mxPoint x="410" y="210" as="sourcePoint"/>
-      <mxPoint x="460" y="210" as="targetPoint"/>
-    </mxGeometry>
+  <mxCell id="14" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=#000000;strokeWidth=2;" vertex="1" parent="1">
+    <mxGeometry x="320" y="420" width="50" height="60" as="geometry"/>
   </mxCell>
 
-
-  <mxCell id="17" value="" style="endArrow=none;html=1;strokeColor=#000000;strokeWidth=1.5;" edge="1" parent="1">
-    <mxGeometry width="50" height="50" relative="1" as="geometry">
-      <mxPoint x="410" y="220" as="sourcePoint"/>
-      <mxPoint x="460" y="225" as="targetPoint"/>
-    </mxGeometry>
+  <mxCell id="15" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=#000000;strokeWidth=2;" vertex="1" parent="1">
+    <mxGeometry x="410" y="420" width="50" height="60" as="geometry"/>
   </mxCell>
 
-
-  <mxCell id="18" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#000000;strokeWidth=2;" vertex="1" parent="1">
-    <mxGeometry x="285" y="250" width="150" height="180" as="geometry"/>
+  <mxCell id="16" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;" vertex="1" parent="1">
+    <mxGeometry x="355" y="167" width="10" height="10" as="geometry"/>
   </mxCell>
 
-
-  <mxCell id="19" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=none;" vertex="1" parent="1">
-    <mxGeometry x="315" y="280" width="90" height="120" as="geometry"/>
-  </mxCell>
-
-
-  <mxCell id="20" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#000000;strokeWidth=2;" vertex="1" parent="1">
-    <mxGeometry x="300" y="410" width="40" height="50" as="geometry"/>
-  </mxCell>
-
-
-  <mxCell id="21" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#000000;strokeWidth=2;" vertex="1" parent="1">
-    <mxGeometry x="380" y="410" width="40" height="50" as="geometry"/>
-  </mxCell>
-
-
-  <mxCell id="22" value="" style="curved=1;endArrow=none;html=1;strokeColor=#000000;strokeWidth=3;fillColor=#FFE6CC;" edge="1" parent="1">
-    <mxGeometry width="50" height="50" relative="1" as="geometry">
-      <mxPoint x="285" y="340" as="sourcePoint"/>
-      <mxPoint x="240" y="260" as="targetPoint"/>
-      <Array as="points">
-        <mxPoint x="260" y="350"/>
-        <mxPoint x="240" y="320"/>
-        <mxPoint x="235" y="290"/>
-      </Array>
-    </mxGeometry>
-  </mxCell>
-
-</root>`,
+  <mxCell id="17" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;" vertex="1" parent="1">
+    <mxGeometry x="410" y="167" width="10" height="10" as="geometry"/>
+  </mxCell>`,
     },
 ]
 

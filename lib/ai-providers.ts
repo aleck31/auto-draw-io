@@ -24,10 +24,11 @@ export interface ClientOverrides {
     baseUrl?: string | null
     apiKey?: string | null
     modelId?: string | null
-    // Bedrock-specific AWS credentials
+    // AWS Bedrock credentials
     awsAccessKeyId?: string | null
     awsSecretAccessKey?: string | null
     awsRegion?: string | null
+    awsSessionToken?: string | null
 }
 
 // Providers that can be used with client-provided API keys
@@ -79,8 +80,8 @@ function parseIntSafe(
  * Supports various AI SDK providers with their unique configuration options
  *
  * Environment variables:
- * - OPENAI_REASONING_EFFORT: OpenAI reasoning effort level (minimal/low/medium/high) - for o1/o3/gpt-5
- * - OPENAI_REASONING_SUMMARY: OpenAI reasoning summary (none/brief/detailed) - auto-enabled for o1/o3/gpt-5
+ * - OPENAI_REASONING_EFFORT: OpenAI reasoning effort level (minimal/low/medium/high) - for o1/o3/o4/gpt-5
+ * - OPENAI_REASONING_SUMMARY: OpenAI reasoning summary (auto/detailed) - auto-enabled for o1/o3/o4/gpt-5
  * - ANTHROPIC_THINKING_BUDGET_TOKENS: Anthropic thinking budget in tokens (1024-64000)
  * - ANTHROPIC_THINKING_TYPE: Anthropic thinking type (enabled)
  * - GOOGLE_THINKING_BUDGET: Google Gemini 2.5 thinking budget in tokens (1024-100000)
@@ -99,18 +100,19 @@ function buildProviderOptions(
             const reasoningEffort = process.env.OPENAI_REASONING_EFFORT
             const reasoningSummary = process.env.OPENAI_REASONING_SUMMARY
 
-            // OpenAI reasoning models (o1, o3, gpt-5) need reasoningSummary to return thoughts
+            // OpenAI reasoning models (o1, o3, o4, gpt-5) need reasoningSummary to return thoughts
             if (
                 modelId &&
                 (modelId.includes("o1") ||
                     modelId.includes("o3") ||
+                    modelId.includes("o4") ||
                     modelId.includes("gpt-5"))
             ) {
                 options.openai = {
-                    // Auto-enable reasoning summary for reasoning models (default: detailed)
+                    // Auto-enable reasoning summary for reasoning models
+                    // Use 'auto' as default since not all models support 'detailed'
                     reasoningSummary:
-                        (reasoningSummary as "none" | "brief" | "detailed") ||
-                        "detailed",
+                        (reasoningSummary as "auto" | "detailed") || "auto",
                 }
 
                 // Optionally configure reasoning effort
@@ -133,8 +135,7 @@ function buildProviderOptions(
                 }
                 if (reasoningSummary) {
                     options.openai.reasoningSummary = reasoningSummary as
-                        | "none"
-                        | "brief"
+                        | "auto"
                         | "detailed"
                 }
             }
@@ -293,7 +294,7 @@ function buildProviderOptions(
         }
 
         case "openrouter": {
-            // OpenRouter doesn't have reasoning configs in AI SDK yet
+            // These providers don't have reasoning configs in AI SDK yet
             break
         }
 
@@ -354,7 +355,7 @@ function validateProviderCredentials(provider: ProviderName): void {
  * Get the AI model based on environment variables
  *
  * Environment variables:
- * - AI_PROVIDER: The provider to use (bedrock, openai, anthropic, google, azure, ollama, openrouter, deepseek, siliconflow)
+ * - AI_PROVIDER: The provider to use (bedrock, openai, anthropic, google, openrouter)
  * - AI_MODEL: The model ID/name for the selected provider
  *
  * Provider-specific env vars:
@@ -377,8 +378,7 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
     }
 
     // Check if client is providing their own provider override
-    const isClientOverride = !!(overrides?.provider && (overrides?.apiKey || 
-        (overrides?.provider === "bedrock" && overrides?.awsAccessKeyId && overrides?.awsSecretAccessKey)))
+    const isClientOverride = !!(overrides?.provider && overrides?.apiKey)
 
     // Use client override if provided, otherwise fall back to env vars
     const modelId = overrides?.modelId || process.env.AI_MODEL
@@ -455,27 +455,25 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
 
     switch (provider) {
         case "bedrock": {
-            // Use client-provided AWS credentials if available, otherwise use credential provider chain
-            let bedrockProvider: any
-            
-            if (overrides?.awsAccessKeyId && overrides?.awsSecretAccessKey) {
-                // Client-provided AWS credentials - use static credentials
-                bedrockProvider = createAmazonBedrock({
-                    region: overrides?.awsRegion || process.env.AWS_REGION || "us-east-1",
-                    credentialProvider: async () => ({
-                        accessKeyId: overrides.awsAccessKeyId!,
-                        secretAccessKey: overrides.awsSecretAccessKey!,
-                    }),
-                })
-            } else {
-                // Use credential provider chain for IAM role support (Lambda, EC2, etc.)
-                // Falls back to env vars (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) for local dev
-                bedrockProvider = createAmazonBedrock({
-                    region: process.env.AWS_REGION || "us-east-1",
-                    credentialProvider: fromNodeProviderChain(),
-                })
-            }
-            
+            // Use client-provided credentials if available, otherwise fall back to IAM/env vars
+            const hasClientCredentials =
+                overrides?.awsAccessKeyId && overrides?.awsSecretAccessKey
+            const bedrockRegion =
+                overrides?.awsRegion || process.env.AWS_REGION || "us-west-2"
+
+            const bedrockProvider = hasClientCredentials
+                ? createAmazonBedrock({
+                      region: bedrockRegion,
+                      accessKeyId: overrides.awsAccessKeyId!,
+                      secretAccessKey: overrides.awsSecretAccessKey!,
+                      ...(overrides?.awsSessionToken && {
+                          sessionToken: overrides.awsSessionToken,
+                      }),
+                  })
+                : createAmazonBedrock({
+                      region: bedrockRegion,
+                      credentialProvider: fromNodeProviderChain(),
+                  })
             model = bedrockProvider(modelId)
             // Add Anthropic beta options if using Claude models via Bedrock
             if (modelId.includes("anthropic.claude")) {
@@ -495,12 +493,16 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
         case "openai": {
             const apiKey = overrides?.apiKey || process.env.OPENAI_API_KEY
             const baseURL = overrides?.baseUrl || process.env.OPENAI_BASE_URL
-            if (baseURL || overrides?.apiKey) {
-                const customOpenAI = createOpenAI({
-                    apiKey,
-                    ...(baseURL && { baseURL }),
-                })
+            if (baseURL) {
+                // Custom base URL = third-party proxy, use Chat Completions API
+                // for compatibility (most proxies don't support /responses endpoint)
+                const customOpenAI = createOpenAI({ apiKey, baseURL })
                 model = customOpenAI.chat(modelId)
+            } else if (overrides?.apiKey) {
+                // Custom API key but official OpenAI endpoint, use Responses API
+                // to support reasoning for gpt-5, o1, o3, o4 models
+                const customOpenAI = createOpenAI({ apiKey })
+                model = customOpenAI(modelId)
             } else {
                 model = openai(modelId)
             }

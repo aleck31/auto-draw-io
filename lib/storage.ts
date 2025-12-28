@@ -24,10 +24,14 @@ export const STORAGE_KEYS = {
     aiBaseUrl: "auto-draw-io-ai-base-url",
     aiApiKey: "auto-draw-io-ai-api-key",
     aiModel: "auto-draw-io-ai-model",
+
     // AWS Bedrock credentials
     awsAccessKeyId: "auto-draw-io-aws-access-key-id",
     awsSecretAccessKey: "auto-draw-io-aws-secret-access-key",
     awsRegion: "auto-draw-io-aws-region",
-    maxOutputTokens: "auto-draw-io-max-output-tokens",
     tavilyApiKey: "auto-draw-io-tavily-api-key",
+
+    // Multi-model configuration
+    modelConfigs: "auto-draw-io-model-configs",
+    selectedModelId: "auto-draw-io-selected-model-id",
 } as const

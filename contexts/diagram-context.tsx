@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react"
 import type { DrawIoEmbedRef } from "react-drawio"
 import { STORAGE_DIAGRAM_XML_KEY } from "@/components/chat-panel"
 import type { ExportFormat } from "@/components/save-dialog"
+import { getApiEndpoint } from "@/lib/base-path"
 import { extractDiagramXML, validateAndFixXml } from "../lib/utils"
 
 interface DiagramContextType {
@@ -54,12 +55,12 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         // Only set ready state once to prevent infinite loops
         if (hasCalledOnLoadRef.current) return
         hasCalledOnLoadRef.current = true
-        // console.log("[DiagramContext] DrawIO loaded, setting ready state")
+        console.log("[DiagramContext] DrawIO loaded, setting ready state")
         setIsDrawioReady(true)
     }
 
     const resetDrawioReady = () => {
-        // console.log("[DiagramContext] Resetting DrawIO ready state")
+        console.log("[DiagramContext] Resetting DrawIO ready state")
         hasCalledOnLoadRef.current = false
         setIsDrawioReady(false)
     }
@@ -106,30 +107,6 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         return () => clearTimeout(timeoutId)
     }, [chartXML, canSaveDiagram])
 
-    // Save current diagram to localStorage (used before theme/UI changes)
-    const saveDiagramToStorage = async (): Promise<void> => {
-        if (!drawioRef.current) return
-
-        try {
-            const currentXml = await Promise.race([
-                new Promise<string>((resolve) => {
-                    resolverRef.current = resolve
-                    drawioRef.current?.exportDiagram({ format: "xmlsvg" })
-                }),
-                new Promise<string>((_, reject) =>
-                    setTimeout(() => reject(new Error("Export timeout")), 2000),
-                ),
-            ])
-
-            // Only save if diagram has meaningful content (not empty template)
-            if (currentXml && currentXml.length > 300) {
-                localStorage.setItem(STORAGE_DIAGRAM_XML_KEY, currentXml)
-            }
-        } catch (error) {
-            console.error("Failed to save diagram to storage:", error)
-        }
-    }
-
     // Track if we're expecting an export for file save (stores raw export data)
     const saveResolverRef = useRef<{
         resolver: ((data: string) => void) | null
@@ -152,6 +129,30 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
             drawioRef.current.exportDiagram({
                 format: "xmlsvg",
             })
+        }
+    }
+
+    // Save current diagram to localStorage (used before theme/UI changes)
+    const saveDiagramToStorage = async (): Promise<void> => {
+        if (!drawioRef.current) return
+
+        try {
+            const currentXml = await Promise.race([
+                new Promise<string>((resolve) => {
+                    resolverRef.current = resolve
+                    drawioRef.current?.exportDiagram({ format: "xmlsvg" })
+                }),
+                new Promise<string>((_, reject) =>
+                    setTimeout(() => reject(new Error("Export timeout")), 2000),
+                ),
+            ])
+
+            // Only save if diagram has meaningful content (not empty template)
+            if (currentXml && currentXml.length > 300) {
+                localStorage.setItem(STORAGE_DIAGRAM_XML_KEY, currentXml)
+            }
+        } catch (error) {
+            console.error("Failed to save diagram to storage:", error)
         }
     }
 
@@ -329,7 +330,7 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         sessionId?: string,
     ) => {
         try {
-            await fetch("/api/log-save", {
+            await fetch(getApiEndpoint("/api/log-save"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ filename, format, sessionId }),

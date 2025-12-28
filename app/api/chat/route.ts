@@ -13,19 +13,20 @@ import { z } from "zod"
 import { getAIModel, supportsPromptCaching } from "@/lib/ai-providers"
 import { findCachedResponse } from "@/lib/cached-responses"
 import {
-    getShapeLibraryTool,
-    createWebSearchTool,
-    createWebExtractTool,
-} from "@/lib/tools"
-import {
     getTelemetryConfig,
     setTraceInput,
     setTraceOutput,
     wrapWithObserve,
 } from "@/lib/langfuse"
 import { getSystemPrompt } from "@/lib/system-prompts"
+import {
+    createWebExtractTool,
+    createWebSearchTool,
+    getShapeLibraryTool,
+} from "@/lib/tools"
+import { getUserIdFromRequest } from "@/lib/user-id"
 
-export const maxDuration = 300
+export const maxDuration = 120
 
 // File upload limits (must match client-side)
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
@@ -114,35 +115,6 @@ function replaceHistoricalToolInputs(messages: any[]): any[] {
     })
 }
 
-// Helper function to fix tool call inputs for Bedrock API
-// Bedrock requires toolUse.input to be a JSON object, not a string
-function fixToolCallInputs(messages: any[]): any[] {
-    return messages.map((msg) => {
-        if (msg.role !== "assistant" || !Array.isArray(msg.content)) {
-            return msg
-        }
-        const fixedContent = msg.content.map((part: any) => {
-            if (part.type === "tool-call") {
-                if (typeof part.input === "string") {
-                    try {
-                        const parsed = JSON.parse(part.input)
-                        return { ...part, input: parsed }
-                    } catch {
-                        // If parsing fails, wrap the string in an object
-                        return { ...part, input: { rawInput: part.input } }
-                    }
-                }
-                // Input is already an object, but verify it's not null/undefined
-                if (part.input === null || part.input === undefined) {
-                    return { ...part, input: {} }
-                }
-            }
-            return part
-        })
-        return { ...msg, content: fixedContent }
-    })
-}
-
 // Helper function to create cached stream response
 function createCachedStreamResponse(xml: string): Response {
     const toolCallId = `cached-${Date.now()}`
@@ -175,28 +147,33 @@ function createCachedStreamResponse(xml: string): Response {
 
 // Inner handler function
 async function handleChatRequest(req: Request): Promise<Response> {
-    // Check for access code
-    const accessCodes =
-        process.env.ACCESS_CODE_LIST?.split(",")
-            .map((code) => code.trim())
-            .filter(Boolean) || []
-    if (accessCodes.length > 0) {
-        const accessCodeHeader = req.headers.get("x-access-code")
-        if (!accessCodeHeader || !accessCodes.includes(accessCodeHeader)) {
-            return Response.json(
-                {
-                    error: "Invalid or missing access code. Please configure it in Settings.",
-                },
-                { status: 401 },
-            )
+    const { messages, xml, previousXml, sessionId, aiConfig, tavilyApiKey } =
+        await req.json()
+
+    // Check if user is using their own LLM provider
+    const hasOwnProvider = !!(aiConfig?.provider && aiConfig?.apiKey)
+
+    // Check for access code (only required when using server-side default model)
+    if (!hasOwnProvider) {
+        const accessCodes =
+            process.env.ACCESS_CODE_LIST?.split(",")
+                .map((code) => code.trim())
+                .filter(Boolean) || []
+        if (accessCodes.length > 0) {
+            const accessCodeHeader = req.headers.get("x-access-code")
+            if (!accessCodeHeader || !accessCodes.includes(accessCodeHeader)) {
+                return Response.json(
+                    {
+                        error: "Invalid or missing access code. Please configure it in Settings to use server-side model, or configure your own LLM provider in Model Configuration.",
+                    },
+                    { status: 401 },
+                )
+            }
         }
     }
 
-    const { messages, xml, previousXml, sessionId, aiConfig, tavilyApiKey } = await req.json()
-
-    // Get user IP for Langfuse tracking
-    const forwardedFor = req.headers.get("x-forwarded-for")
-    const userId = forwardedFor?.split(",")[0]?.trim() || "anonymous"
+    // Get user ID for Langfuse tracking and quota
+    const userId = getUserIdFromRequest(req)
 
     // Validate sessionId for Langfuse (must be string, max 200 chars)
     const validSessionId =
@@ -205,9 +182,12 @@ async function handleChatRequest(req: Request): Promise<Response> {
             : undefined
 
     // Extract user input text for Langfuse trace
-    const currentMessage = messages[messages.length - 1]
+    // Find the last USER message, not just the last message (which could be assistant in multi-step tool flows)
+    const lastUserMessage = [...messages]
+        .reverse()
+        .find((m: any) => m.role === "user")
     const userInputText =
-        currentMessage?.parts?.find((p: any) => p.type === "text")?.text || ""
+        lastUserMessage?.parts?.find((p: any) => p.type === "text")?.text || ""
 
     // Update Langfuse trace with input, session, and user
     setTraceInput({
@@ -243,6 +223,9 @@ async function handleChatRequest(req: Request): Promise<Response> {
     // Read client AI provider overrides from request body (more secure than headers)
     const clientOverrides = aiConfig || {}
 
+    // Read minimal style preference from header
+    const minimalStyle = req.headers.get("x-minimal-style") === "true"
+
     // Get AI model with optional client overrides
     const { model, providerOptions, headers, modelId } =
         getAIModel(clientOverrides)
@@ -254,37 +237,59 @@ async function handleChatRequest(req: Request): Promise<Response> {
     )
 
     // Get the appropriate system prompt based on model (extended for Opus/Haiku 4.5)
-    const systemMessage = getSystemPrompt(modelId)
+    const systemMessage = getSystemPrompt(modelId, minimalStyle)
 
-    const lastMessage = messages[messages.length - 1]
-
-    // Extract text from the last message parts
-    const lastMessageText =
-        lastMessage.parts?.find((part: any) => part.type === "text")?.text || ""
-
-    // Extract file parts (images) from the last message
+    // Extract file parts (images) from the last user message
     const fileParts =
-        lastMessage.parts?.filter((part: any) => part.type === "file") || []
+        lastUserMessage?.parts?.filter((part: any) => part.type === "file") ||
+        []
 
     // User input only - XML is now in a separate cached system message
     const formattedUserInput = `User input:
 """md
-${lastMessageText}
+${userInputText}
 """`
 
     // Convert UIMessages to ModelMessages and add system message
-    const modelMessages = convertToModelMessages(messages)
+    const modelMessages = await convertToModelMessages(messages)
 
-    // Fix tool call inputs for Bedrock API (requires JSON objects, not strings)
-    const fixedMessages = fixToolCallInputs(modelMessages)
+    // DEBUG: Log incoming messages structure
+    console.log("[route.ts] Incoming messages count:", messages.length)
+    messages.forEach((msg: any, idx: number) => {
+        console.log(
+            `[route.ts] Message ${idx} role:`,
+            msg.role,
+            "parts count:",
+            msg.parts?.length,
+        )
+        if (msg.parts) {
+            msg.parts.forEach((part: any, partIdx: number) => {
+                if (
+                    part.type === "tool-invocation" ||
+                    part.type === "tool-result"
+                ) {
+                    console.log(`[route.ts]   Part ${partIdx}:`, {
+                        type: part.type,
+                        toolName: part.toolName,
+                        hasInput: !!part.input,
+                        inputType: typeof part.input,
+                        inputKeys:
+                            part.input && typeof part.input === "object"
+                                ? Object.keys(part.input)
+                                : null,
+                    })
+                }
+            })
+        }
+    })
 
     // Replace historical tool call XML with placeholders to reduce tokens
     // Disabled by default - some models (e.g. minimax) copy placeholders instead of generating XML
     const enableHistoryReplace =
         process.env.ENABLE_HISTORY_XML_REPLACE === "true"
     const placeholderMessages = enableHistoryReplace
-        ? replaceHistoricalToolInputs(fixedMessages)
-        : fixedMessages
+        ? replaceHistoricalToolInputs(modelMessages)
+        : modelMessages
 
     // Filter out messages with empty content arrays (Bedrock API rejects these)
     // This is a safety measure - ideally convertToModelMessages should handle all cases
@@ -320,6 +325,35 @@ ${lastMessageText}
             return { ...msg, content: filteredContent }
         })
         .filter((msg: any) => msg.content && msg.content.length > 0)
+
+    // DEBUG: Log modelMessages structure (what's being sent to AI)
+    console.log("[route.ts] Model messages count:", enhancedMessages.length)
+    enhancedMessages.forEach((msg: any, idx: number) => {
+        console.log(
+            `[route.ts] ModelMsg ${idx} role:`,
+            msg.role,
+            "content count:",
+            msg.content?.length,
+        )
+        if (msg.content) {
+            msg.content.forEach((part: any, partIdx: number) => {
+                if (part.type === "tool-call" || part.type === "tool-result") {
+                    console.log(`[route.ts]   Content ${partIdx}:`, {
+                        type: part.type,
+                        toolName: part.toolName,
+                        hasInput: !!part.input,
+                        inputType: typeof part.input,
+                        inputValue:
+                            part.input === undefined
+                                ? "undefined"
+                                : part.input === null
+                                  ? "null"
+                                  : "object",
+                    })
+                }
+            })
+        }
+    })
 
     // Update the last message with user input only (XML moved to separate cached system message)
     if (enhancedMessages.length >= 1) {
@@ -394,33 +428,26 @@ ${lastMessageText}
 
     const allMessages = [...systemMessages, ...enhancedMessages]
 
-    // Determine maxOutputTokens from client config or environment variable
-    const maxOutputTokens = clientOverrides.maxOutputTokens 
-        ? parseInt(clientOverrides.maxOutputTokens, 10)
-        : process.env.MAX_OUTPUT_TOKENS 
-        ? parseInt(process.env.MAX_OUTPUT_TOKENS, 10)
-        : undefined
-
     const result = streamText({
         model,
-        ...(maxOutputTokens && { maxOutputTokens }),
-        stopWhen: stepCountIs(5),
-        messages: allMessages,
-        ...(providerOptions && { providerOptions }), // This now includes all reasoning configs
-        ...(headers && { headers }),
-        // Langfuse telemetry config (returns undefined if not configured)
-        ...(getTelemetryConfig({ sessionId: validSessionId, userId }) && {
-            experimental_telemetry: getTelemetryConfig({
-                sessionId: validSessionId,
-                userId,
-            }),
+        ...(process.env.MAX_OUTPUT_TOKENS && {
+            maxOutputTokens: parseInt(process.env.MAX_OUTPUT_TOKENS, 10),
         }),
-        // Repair malformed tool calls (model sometimes generates invalid JSON with unescaped quotes)
+        stopWhen: stepCountIs(5),
+        // Repair truncated tool calls when maxOutputTokens is reached mid-JSON
         experimental_repairToolCall: async ({ toolCall, error }) => {
+            // DEBUG: Log what we're trying to repair
+            console.log(`[repairToolCall] Tool: ${toolCall.toolName}`)
+            console.log(
+                `[repairToolCall] Error: ${error.name} - ${error.message}`,
+            )
+            console.log(`[repairToolCall] Input type: ${typeof toolCall.input}`)
+            console.log(`[repairToolCall] Input value:`, toolCall.input)
+
             // Only attempt repair for invalid tool input (broken JSON from truncation)
             if (
                 error instanceof InvalidToolInputError ||
-                error?.name === "AI_InvalidToolInputError"
+                error.name === "AI_InvalidToolInputError"
             ) {
                 try {
                     // Pre-process to fix common LLM JSON errors that jsonrepair can't handle
@@ -465,37 +492,22 @@ ${lastMessageText}
                     return null
                 }
             }
-
-            // Fallback: repair unescaped quotes (original logic)
-            const rawJson =
-                typeof toolCall.input === "string" ? toolCall.input : null
-
-            if (rawJson) {
-                try {
-                    // Fix unescaped quotes: x="520" should be x=\"520\"
-                    const fixed = rawJson.replace(
-                        /([a-zA-Z])="(\d+)"/g,
-                        '$1=\\"$2\\"',
-                    )
-                    const parsed = JSON.parse(fixed)
-                    return {
-                        type: "tool-call" as const,
-                        toolCallId: toolCall.toolCallId,
-                        toolName: toolCall.toolName,
-                        input: JSON.stringify(parsed),
-                    }
-                } catch {
-                    // Repair failed, return null
-                }
-            }
+            // Don't attempt to repair other errors (like NoSuchToolError)
             return null
         },
-        onFinish: ({ text, usage }) => {
-            // Pass usage to Langfuse (Bedrock streaming doesn't auto-report tokens to telemetry)
-            setTraceOutput(text, {
-                promptTokens: usage?.inputTokens,
-                completionTokens: usage?.outputTokens,
-            })
+        messages: allMessages,
+        ...(providerOptions && { providerOptions }), // This now includes all reasoning configs
+        ...(headers && { headers }),
+        // Langfuse telemetry config (returns undefined if not configured)
+        ...(getTelemetryConfig({ sessionId: validSessionId, userId }) && {
+            experimental_telemetry: getTelemetryConfig({
+                sessionId: validSessionId,
+                userId,
+            }),
+        }),
+        onFinish: ({ text, totalUsage }) => {
+            // AI SDK 6 telemetry auto-reports token usage on its spans
+            setTraceOutput(text)
         },
         tools: {
             // Client-side tool that will be executed on the client
@@ -547,14 +559,22 @@ Operations:
 
 For update/add, new_xml must be a complete mxCell element including mxGeometry.
 
-⚠️ JSON ESCAPING: Every " inside new_xml MUST be escaped as \\". Example: id=\\"5\\" value=\\"Label\\"`,
+⚠️ JSON ESCAPING: Every " inside new_xml MUST be escaped as \\". Example: id=\\"5\\" value=\\"Label\\"
+
+Example - Add a rectangle:
+{"operations": [{"operation": "add", "cell_id": "rect-1", "new_xml": "<mxCell id=\\"rect-1\\" value=\\"Hello\\" style=\\"rounded=0;\\" vertex=\\"1\\" parent=\\"1\\"><mxGeometry x=\\"100\\" y=\\"100\\" width=\\"120\\" height=\\"60\\" as=\\"geometry\\"/></mxCell>"}]}
+
+Example - Delete a cell:
+{"operations": [{"operation": "delete", "cell_id": "rect-1"}]}`,
                 inputSchema: z.object({
                     operations: z
                         .array(
                             z.object({
-                                type: z
+                                operation: z
                                     .enum(["update", "add", "delete"])
-                                    .describe("Operation type"),
+                                    .describe(
+                                        "Operation to perform: add, update, or delete",
+                                    ),
                                 cell_id: z
                                     .string()
                                     .describe(
@@ -613,19 +633,10 @@ Example: If previous output ended with '<mxCell id="x" style="rounded=1', contin
         messageMetadata: ({ part }) => {
             if (part.type === "finish") {
                 const usage = (part as any).totalUsage
-                if (!usage) {
-                    console.warn(
-                        "[messageMetadata] No usage data in finish part",
-                    )
-                    return undefined
-                }
-                // Total input = non-cached + cached (these are separate counts)
-                // Note: cacheWriteInputTokens is not available on finish part
-                const totalInputTokens =
-                    (usage.inputTokens ?? 0) + (usage.cachedInputTokens ?? 0)
+                // AI SDK 6 provides totalTokens directly
                 return {
-                    inputTokens: totalInputTokens,
-                    outputTokens: usage.outputTokens ?? 0,
+                    totalTokens: usage?.totalTokens ?? 0,
+                    finishReason: (part as any).finishReason,
                 }
             }
             return undefined

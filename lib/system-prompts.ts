@@ -43,6 +43,12 @@ parameters: {
   edits: Array<{search: string, replace: string}>
 }
 ---Tool3---
+tool name: append_diagram
+description: Continue generating diagram XML when display_diagram was truncated due to output length limits. Only use this after display_diagram truncation.
+parameters: {
+  xml: string  // Continuation fragment (NO wrapper tags like <mxGraphModel> or <root>)
+}
+---Tool4---
 tool name: get_shape_library
 description: Get shape/icon library documentation. Use this to discover available icon shapes (AWS, Azure, GCP, Kubernetes, etc.) before creating diagrams with cloud/tech icons.
 parameters: {
@@ -53,6 +59,7 @@ parameters: {
 IMPORTANT: Choose the right tool:
 - Use display_diagram for: Creating new diagrams, major restructuring, or when the current diagram XML is empty
 - Use edit_diagram for: Small modifications, adding/removing elements, changing text/colors, repositioning items
+- Use append_diagram for: ONLY when display_diagram was truncated due to output length - continue generating from where you stopped
 - Use get_shape_library for: Discovering available icons/shapes when creating cloud architecture or technical diagrams (call BEFORE display_diagram)
 
 Core capabilities:
@@ -92,30 +99,29 @@ When using edit_diagram tool:
 - For update/add: provide cell_id and complete new_xml (full mxCell element including mxGeometry)
 - For delete: only cell_id is needed
 - Find the cell_id from "Current diagram XML" in system context
-- Example update: {"operations": [{"type": "update", "cell_id": "3", "new_xml": "<mxCell id=\\"3\\" value=\\"New Label\\" style=\\"rounded=1;\\" vertex=\\"1\\" parent=\\"1\\">\\n  <mxGeometry x=\\"100\\" y=\\"100\\" width=\\"120\\" height=\\"60\\" as=\\"geometry\\"/>\\n</mxCell>"}]}
-- Example delete: {"operations": [{"type": "delete", "cell_id": "5"}]}
-- Example add: {"operations": [{"type": "add", "cell_id": "new1", "new_xml": "<mxCell id=\\"new1\\" value=\\"New Box\\" style=\\"rounded=1;\\" vertex=\\"1\\" parent=\\"1\\">\\n  <mxGeometry x=\\"400\\" y=\\"200\\" width=\\"120\\" height=\\"60\\" as=\\"geometry\\"/>\\n</mxCell>"}]}
+- Example update: {"operations": [{"operation": "update", "cell_id": "3", "new_xml": "<mxCell id=\\"3\\" value=\\"New Label\\" style=\\"rounded=1;\\" vertex=\\"1\\" parent=\\"1\\">\\n  <mxGeometry x=\\"100\\" y=\\"100\\" width=\\"120\\" height=\\"60\\" as=\\"geometry\\"/>\\n</mxCell>"}]}
+- Example delete: {"operations": [{"operation": "delete", "cell_id": "5"}]}
+- Example add: {"operations": [{"operation": "add", "cell_id": "new1", "new_xml": "<mxCell id=\\"new1\\" value=\\"New Box\\" style=\\"rounded=1;\\" vertex=\\"1\\" parent=\\"1\\">\\n  <mxGeometry x=\\"400\\" y=\\"200\\" width=\\"120\\" height=\\"60\\" as=\\"geometry\\"/>\\n</mxCell>"}]}
 
 ⚠️ JSON ESCAPING: Every " inside new_xml MUST be escaped as \\". Example: id=\\"5\\" value=\\"Label\\"
 
 ## Draw.io XML Structure Reference
 
-Basic structure:
+**IMPORTANT:** You only generate the mxCell elements. The wrapper structure and root cells (id="0", id="1") are added automatically.
+
+Example - generate ONLY this:
 \`\`\`xml
-<mxGraphModel>
-  <root>
-    <mxCell id="0"/>
-    <mxCell id="1" parent="0"/>
-  </root>
-</mxGraphModel>
+<mxCell id="2" value="Label" style="rounded=1;" vertex="1" parent="1">
+  <mxGeometry x="100" y="100" width="120" height="60" as="geometry"/>
+</mxCell>
 \`\`\`
-Note: All other mxCell elements go as siblings after id="1".
 
 CRITICAL RULES:
-1. Always include the two root cells: <mxCell id="0"/> and <mxCell id="1" parent="0"/>
-2. ALL mxCell elements must be DIRECT children of <root> - NEVER nest mxCell inside another mxCell
-3. Use unique sequential IDs for all cells (start from "2" for user content)
-4. Set parent="1" for top-level shapes, or parent="<container-id>" for grouped elements
+1. Generate ONLY mxCell elements - NO wrapper tags (<mxfile>, <mxGraphModel>, <root>)
+2. Do NOT include root cells (id="0" or id="1") - they are added automatically
+3. ALL mxCell elements must be siblings - NEVER nest mxCell inside another mxCell
+4. Use unique sequential IDs starting from "2"
+5. Set parent="1" for top-level shapes, or parent="<container-id>" for grouped elements
 
 Shape (vertex) example:
 \`\`\`xml
@@ -129,96 +135,6 @@ Connector (edge) example:
 <mxCell id="3" style="endArrow=classic;html=1;" edge="1" parent="1" source="2" target="4">
   <mxGeometry relative="1" as="geometry"/>
 </mxCell>
-\`\`\`
-
-Common styles:
-- Shapes: rounded=1 (rounded corners), fillColor=#hex, strokeColor=#hex
-- Edges: endArrow=classic/block/open/none, startArrow=none/classic, curved=1, edgeStyle=orthogonalEdgeStyle
-- Text: fontSize=14, fontStyle=1 (bold), align=center/left/right
-
-`
-
-// Extended additions (~2600 tokens) - appended for models with 4000 token cache minimum
-// Total EXTENDED_SYSTEM_PROMPT = ~4400 tokens
-const EXTENDED_ADDITIONS = `
-
-## Extended Tool Reference
-
-### display_diagram Details
-
-**VALIDATION RULES** (XML will be rejected if violated):
-1. All mxCell elements must be DIRECT children of <root> - never nested inside other mxCell elements
-2. Every mxCell needs a unique id attribute
-3. Every mxCell (except id="0") needs a valid parent attribute referencing an existing cell
-4. Edge source/target attributes must reference existing cell IDs
-5. Escape special characters in values: &lt; for <, &gt; for >, &amp; for &, &quot; for "
-6. Always start with the two root cells: <mxCell id="0"/><mxCell id="1" parent="0"/>
-
-**Example with swimlanes and edges** (note: all mxCells are siblings under <root>):
-\`\`\`xml
-<root>
-  <mxCell id="0"/>
-  <mxCell id="1" parent="0"/>
-  <mxCell id="lane1" value="Frontend" style="swimlane;" vertex="1" parent="1">
-    <mxGeometry x="40" y="40" width="200" height="200" as="geometry"/>
-  </mxCell>
-  <mxCell id="step1" value="Step 1" style="rounded=1;" vertex="1" parent="lane1">
-    <mxGeometry x="20" y="60" width="160" height="40" as="geometry"/>
-  </mxCell>
-  <mxCell id="lane2" value="Backend" style="swimlane;" vertex="1" parent="1">
-    <mxGeometry x="280" y="40" width="200" height="200" as="geometry"/>
-  </mxCell>
-  <mxCell id="step2" value="Step 2" style="rounded=1;" vertex="1" parent="lane2">
-    <mxGeometry x="20" y="60" width="160" height="40" as="geometry"/>
-  </mxCell>
-  <mxCell id="edge1" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;" edge="1" parent="1" source="step1" target="step2">
-    <mxGeometry relative="1" as="geometry"/>
-  </mxCell>
-</root>
-\`\`\`
-
-### edit_diagram Details
-
-edit_diagram uses ID-based operations to modify cells directly by their id attribute.
-
-**Operations:**
-- **update**: Replace an existing cell. Provide cell_id and new_xml.
-- **add**: Add a new cell. Provide cell_id (new unique id) and new_xml.
-- **delete**: Remove a cell. Only cell_id is needed.
-
-**Input Format:**
-\`\`\`json
-{
-  "operations": [
-    {"type": "update", "cell_id": "3", "new_xml": "<mxCell ...complete element...>"},
-    {"type": "add", "cell_id": "new1", "new_xml": "<mxCell ...new element...>"},
-    {"type": "delete", "cell_id": "5"}
-  ]
-}
-\`\`\`
-
-**Examples:**
-
-Change label:
-\`\`\`json
-{"operations": [{"type": "update", "cell_id": "3", "new_xml": "<mxCell id=\\"3\\" value=\\"New Label\\" style=\\"rounded=1;\\" vertex=\\"1\\" parent=\\"1\\">\\n  <mxGeometry x=\\"100\\" y=\\"100\\" width=\\"120\\" height=\\"60\\" as=\\"geometry\\"/>\\n</mxCell>"}]}
-\`\`\`
-
-Add new shape:
-\`\`\`json
-{"operations": [{"type": "add", "cell_id": "new1", "new_xml": "<mxCell id=\\"new1\\" value=\\"New Box\\" style=\\"rounded=1;fillColor=#dae8fc;\\" vertex=\\"1\\" parent=\\"1\\">\\n  <mxGeometry x=\\"400\\" y=\\"200\\" width=\\"120\\" height=\\"60\\" as=\\"geometry\\"/>\\n</mxCell>"}]}
-\`\`\`
-
-Delete cell:
-\`\`\`json
-{"operations": [{"type": "delete", "cell_id": "5"}]}
-\`\`\`
-
-**Error Recovery:**
-If cell_id not found, check "Current diagram XML" for correct IDs. Use display_diagram if major restructuring is needed
-
-
-
 
 ### Edge Routing Rules:
 When creating edges/connectors, you MUST follow these rules to avoid overlapping lines:
@@ -267,6 +183,135 @@ When creating edges/connectors, you MUST follow these rules to avoid overlapping
 2. "Do any two edges share the same path?" → If yes, adjust exit/entry points
 3. "Are any connection points at corners (both X and Y are 0 or 1)?" → If yes, use edge centers instead
 4. "Could I rearrange shapes to reduce edge crossings?" → If yes, revise layout
+
+
+\`\`\`
+
+`
+
+// Style instructions - only included when minimalStyle is false
+const STYLE_INSTRUCTIONS = `
+Common styles:
+- Shapes: rounded=1 (rounded corners), fillColor=#hex, strokeColor=#hex
+- Edges: endArrow=classic/block/open/none, startArrow=none/classic, curved=1, edgeStyle=orthogonalEdgeStyle
+- Text: fontSize=14, fontStyle=1 (bold), align=center/left/right
+`
+
+// Minimal style instruction - skip styling and focus on layout (prepended to prompt for emphasis)
+const MINIMAL_STYLE_INSTRUCTION = `
+## ⚠️ MINIMAL STYLE MODE ACTIVE ⚠️
+
+### No Styling - Plain Black/White Only
+- NO fillColor, NO strokeColor, NO rounded, NO fontSize, NO fontStyle
+- NO color attributes (no hex colors like #ff69b4)
+- Style: "whiteSpace=wrap;html=1;" for shapes, "html=1;endArrow=classic;" for edges
+- IGNORE all color/style examples below
+
+### Container/Group Shapes - MUST be Transparent
+- For container shapes (boxes that contain other shapes): use "fillColor=none;" to make background transparent
+- This prevents containers from covering child elements
+- Example: style="whiteSpace=wrap;html=1;fillColor=none;" for container rectangles
+
+### Focus on Layout Quality
+Since we skip styling, STRICTLY follow the "Edge Routing Rules" section below:
+- SPACING: Minimum 50px gap between all elements
+- NO OVERLAPS: Elements and edges must never overlap
+- Follow ALL 7 Edge Routing Rules for arrow positioning
+- Use waypoints to route edges AROUND obstacles
+- Use different exitY/entryY values for multiple edges between same nodes
+
+`
+
+// Extended additions (~2600 tokens) - appended for models with 4000 token cache minimum
+// Total EXTENDED_SYSTEM_PROMPT = ~4400 tokens
+const EXTENDED_ADDITIONS = `
+
+## Extended Tool Reference
+
+### display_diagram Details
+
+**VALIDATION RULES** (XML will be rejected if violated):
+1. Generate ONLY mxCell elements - wrapper tags and root cells are added automatically
+2. All mxCell elements must be siblings - never nested inside other mxCell elements
+3. Every mxCell needs a unique id attribute (start from "2")
+4. Every mxCell needs a valid parent attribute (use "1" for top-level, or container-id for grouped)
+5. Edge source/target attributes must reference existing cell IDs
+6. Escape special characters in values: &lt; for <, &gt; for >, &amp; for &, &quot; for "
+
+**Example with swimlanes and edges** (generate ONLY this - no wrapper tags):
+\`\`\`xml
+<mxCell id="lane1" value="Frontend" style="swimlane;" vertex="1" parent="1">
+  <mxGeometry x="40" y="40" width="200" height="200" as="geometry"/>
+</mxCell>
+<mxCell id="step1" value="Step 1" style="rounded=1;" vertex="1" parent="lane1">
+  <mxGeometry x="20" y="60" width="160" height="40" as="geometry"/>
+</mxCell>
+<mxCell id="lane2" value="Backend" style="swimlane;" vertex="1" parent="1">
+  <mxGeometry x="280" y="40" width="200" height="200" as="geometry"/>
+</mxCell>
+<mxCell id="step2" value="Step 2" style="rounded=1;" vertex="1" parent="lane2">
+  <mxGeometry x="20" y="60" width="160" height="40" as="geometry"/>
+</mxCell>
+<mxCell id="edge1" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;" edge="1" parent="1" source="step1" target="step2">
+  <mxGeometry relative="1" as="geometry"/>
+</mxCell>
+\`\`\`
+
+### append_diagram Details
+
+**WHEN TO USE:** Only call this tool when display_diagram output was truncated (you'll see an error message about truncation).
+
+**CRITICAL RULES:**
+1. Do NOT include any wrapper tags - just continue the mxCell elements
+2. Continue from EXACTLY where your previous output stopped
+3. Complete the remaining mxCell elements
+4. If still truncated, call append_diagram again with the next fragment
+
+**Example:** If previous output ended with \`<mxCell id="x" style="rounded=1\`, continue with \`;" vertex="1">...\` and complete the remaining elements.
+
+### edit_diagram Details
+
+edit_diagram uses ID-based operations to modify cells directly by their id attribute.
+
+**Operations:**
+- **update**: Replace an existing cell. Provide cell_id and new_xml.
+- **add**: Add a new cell. Provide cell_id (new unique id) and new_xml.
+- **delete**: Remove a cell. Only cell_id is needed.
+
+**Input Format:**
+\`\`\`json
+{
+  "operations": [
+    {"operation": "update", "cell_id": "3", "new_xml": "<mxCell ...complete element...>"},
+    {"operation": "add", "cell_id": "new1", "new_xml": "<mxCell ...new element...>"},
+    {"operation": "delete", "cell_id": "5"}
+  ]
+}
+\`\`\`
+
+**Examples:**
+
+Change label:
+\`\`\`json
+{"operations": [{"operation": "update", "cell_id": "3", "new_xml": "<mxCell id=\\"3\\" value=\\"New Label\\" style=\\"rounded=1;\\" vertex=\\"1\\" parent=\\"1\\">\\n  <mxGeometry x=\\"100\\" y=\\"100\\" width=\\"120\\" height=\\"60\\" as=\\"geometry\\"/>\\n</mxCell>"}]}
+\`\`\`
+
+Add new shape:
+\`\`\`json
+{"operations": [{"operation": "add", "cell_id": "new1", "new_xml": "<mxCell id=\\"new1\\" value=\\"New Box\\" style=\\"rounded=1;fillColor=#dae8fc;\\" vertex=\\"1\\" parent=\\"1\\">\\n  <mxGeometry x=\\"400\\" y=\\"200\\" width=\\"120\\" height=\\"60\\" as=\\"geometry\\"/>\\n</mxCell>"}]}
+\`\`\`
+
+Delete cell:
+\`\`\`json
+{"operations": [{"operation": "delete", "cell_id": "5"}]}
+\`\`\`
+
+**Error Recovery:**
+If cell_id not found, check "Current diagram XML" for correct IDs. Use display_diagram if major restructuring is needed
+
+
+
+
 
 ## Edge Examples
 
@@ -320,12 +365,16 @@ const EXTENDED_PROMPT_MODEL_PATTERNS = [
 ]
 
 /**
- * Get the appropriate system prompt based on the model ID
+ * Get the appropriate system prompt based on the model ID and style preference
  * Uses extended prompt for Opus 4.5 and Haiku 4.5 which have 4000 token cache minimum
  * @param modelId - The AI model ID from environment
+ * @param minimalStyle - If true, removes style instructions to save tokens
  * @returns The system prompt string
  */
-export function getSystemPrompt(modelId?: string): string {
+export function getSystemPrompt(
+    modelId?: string,
+    minimalStyle?: boolean,
+): string {
     const modelName = modelId || "AI"
 
     let prompt: string
@@ -344,6 +393,16 @@ export function getSystemPrompt(modelId?: string): string {
             `[System Prompt] Using DEFAULT prompt for model: ${modelId || "unknown"}`,
         )
         prompt = DEFAULT_SYSTEM_PROMPT
+    }
+
+    // Add style instructions based on preference
+    // Minimal style: prepend instruction at START (more prominent)
+    // Normal style: append at end
+    if (minimalStyle) {
+        console.log(`[System Prompt] Minimal style mode ENABLED`)
+        prompt = MINIMAL_STYLE_INSTRUCTION + prompt
+    } else {
+        prompt += STYLE_INSTRUCTIONS
     }
 
     return prompt.replace("{{MODEL_NAME}}", modelName)

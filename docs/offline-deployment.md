@@ -2,7 +2,7 @@
 
 Deploy Auto Draw.io offline by self-hosting draw.io to replace `embed.diagrams.net`.
 
-**Note:** `AUTO_DRAWIO_BASE_URL` is a **build-time** variable. Changing it requires rebuilding the Docker image.
+**Note:** `EMBED_DRAWIO_BASE_URL` is a **build-time** variable. Changing it requires rebuilding the Docker image.
 
 ## Docker Compose Setup
 
@@ -18,7 +18,7 @@ services:
     build:
       context: .
       args:
-        - AUTO_DRAWIO_BASE_URL=http://localhost:8080
+        - EMBED_DRAWIO_BASE_URL=http://localhost:8080
     ports: ["3000:3000"]
     env_file: .env
     depends_on: [drawio]
@@ -28,7 +28,7 @@ services:
 
 ## Configuration & Critical Warning
 
-**The `AUTO_DRAWIO_BASE_URL` must be accessible from the user's browser.**
+**The `EMBED_DRAWIO_BASE_URL` must be accessible from the user's browser.**
 
 | Scenario | URL Value |
 |----------|-----------|

@@ -65,6 +65,7 @@
 -   **AI推理过程显示**：查看支持模型的AI思考过程（OpenAI o1/o3、Gemini、Claude等）
 -   **图表历史记录**：全面的版本控制，跟踪所有更改，允许您查看和恢复AI编辑前的图表版本
 -   **交互式聊天界面**：与AI实时对话来完善您的图表
+-   **云架构图支持**：专门支持生成云架构图（AWS、GCP、Azure）
 -   **动画连接器**：在图表元素之间创建动态动画连接器，实现更好的可视化效果
 -   **云架构图支持**：专门支持生成云架构图（AWS、GCP、Azure）
 -   **图标库智能发现**：AI可以查询30+图标库（AWS、Azure、GCP、Kubernetes等）获取准确的图标名称和样式语法
@@ -188,18 +189,16 @@ npm run dev
 
 ```
 app/                  # Next.js App Router
-  api/                # API 路由
-    chat/             # 带AI工具的聊天API端点
-    config/           # 配置API端点
+  api/chat/           # 带AI工具的聊天API端点
+  api/config/           # 配置API端点
   page.tsx            # 带DrawIO嵌入的主页面
-  layout.tsx          # 应用布局
 components/           # React组件
   chat-panel.tsx      # 带图表控制的聊天界面
   chat-input.tsx      # 带文件上传的用户输入组件
   chat-example-panel.tsx # 快速示例面板
   settings-dialog.tsx # 设置对话框（AI提供商配置）
   history-dialog.tsx  # 图表版本历史查看器
-  ui/                 # UI基础组件（按钮、输入框、对话框等）
+  ui/                 # UI组件（按钮、输入框、卡片等）
 contexts/             # React上下文提供者
   diagram-context.tsx # 全局图表状态管理
 lib/                  # 工具函数和辅助程序
