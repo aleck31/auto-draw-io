@@ -151,7 +151,14 @@ async function handleChatRequest(req: Request): Promise<Response> {
         await req.json()
 
     // Check if user is using their own LLM provider
-    const hasOwnProvider = !!(aiConfig?.provider && aiConfig?.apiKey)
+    // For Bedrock: check AWS credentials; For others: check apiKey
+    const hasOwnProvider = !!(
+        aiConfig?.provider &&
+        (aiConfig?.apiKey ||
+            (aiConfig?.provider === "bedrock" &&
+                aiConfig?.awsAccessKeyId &&
+                aiConfig?.awsSecretAccessKey))
+    )
 
     // Check for access code (only required when using server-side default model)
     if (!hasOwnProvider) {

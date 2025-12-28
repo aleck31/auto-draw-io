@@ -619,7 +619,11 @@ export function ModelConfigDialog({
                                                                         value,
                                                                     )
                                                                 }
-                                                                placeholder="AKIA..."
+                                                                placeholder={
+                                                                    dict
+                                                                        .modelConfig
+                                                                        .enterAccessKey
+                                                                }
                                                                 className="h-9 font-mono text-xs"
                                                                 aria-label="AWS Access Key ID"
                                                             />

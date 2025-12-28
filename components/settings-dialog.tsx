@@ -162,7 +162,7 @@ function SettingsContent({
             }
 
             localStorage.setItem(STORAGE_ACCESS_CODE_KEY, accessCode.trim())
-            onOpenChange(false)
+            // Don't close dialog after successful save
         } catch {
             setError(dict.errors.networkError)
         } finally {
@@ -222,6 +222,21 @@ function SettingsContent({
                                 >
                                     {isVerifying ? "..." : dict.common.save}
                                 </Button>
+                                {accessCode && (
+                                    <Button
+                                        onClick={() => {
+                                            setAccessCode("")
+                                            localStorage.removeItem(
+                                                STORAGE_ACCESS_CODE_KEY,
+                                            )
+                                            setError("")
+                                        }}
+                                        variant="outline"
+                                        className="h-9 px-4 rounded-xl"
+                                    >
+                                        {dict.common.clear}
+                                    </Button>
+                                )}
                             </div>
                             {error && (
                                 <p className="text-xs text-destructive">

@@ -3,11 +3,11 @@
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import {
-    Bot,
     MessageSquarePlus,
     PanelRightClose,
     PanelRightOpen,
     Settings,
+    Sliders,
 } from "lucide-react"
 import Image from "next/image"
 import type React from "react"
@@ -927,7 +927,7 @@ export default function ChatPanel({
                             onClick={() => setShowModelConfigDialog(true)}
                             className="hover:bg-accent"
                         >
-                            <Bot
+                            <Sliders
                                 className={`${isMobile ? "h-4 w-4" : "h-5 w-5"} text-muted-foreground`}
                             />
                         </ButtonWithTooltip>
