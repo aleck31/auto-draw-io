@@ -967,8 +967,8 @@ export function ModelConfigDialog({
                                             title={dict.modelConfig.models}
                                             icon={Sparkles}
                                             action={
-                                                <div className="flex items-center gap-2">
-                                                    <div className="relative">
+                                                <div className="flex items-center gap-2 flex-1 max-w-md">
+                                                    <div className="relative flex-1">
                                                         <Input
                                                             placeholder={
                                                                 dict.modelConfig
@@ -1010,7 +1010,7 @@ export function ModelConfigDialog({
                                                                 }
                                                             }}
                                                             className={cn(
-                                                                "h-8 w-44 rounded-lg font-mono text-xs",
+                                                                "h-8 rounded-lg font-mono text-xs",
                                                                 duplicateError &&
                                                                     "border-destructive focus-visible:ring-destructive",
                                                             )}
@@ -1061,7 +1061,7 @@ export function ModelConfigDialog({
                                                             0
                                                         }
                                                     >
-                                                        <SelectTrigger className="w-28 h-8 rounded-lg hover:bg-interactive-hover">
+                                                        <SelectTrigger className="w-36 h-8 rounded-lg hover:bg-interactive-hover">
                                                             <span className="text-xs">
                                                                 {availableSuggestions.length ===
                                                                 0

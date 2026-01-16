@@ -210,7 +210,7 @@ export const dictionary = {
         noModelsConfigured: "No Models Configured",
         modelIdEmpty: "Model ID cannot be empty",
         modelIdExists: "Model ID already exists",
-        apiKeyStored: "API Key Stored locally",
+        apiKeyStored: "API Key Stored Locally",
         cancel: "Cancel",
         delete: "Delete",
         deleteProvider: "Delete Provider",

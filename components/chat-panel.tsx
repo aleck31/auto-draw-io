@@ -11,7 +11,13 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import type React from "react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import {
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState,
+} from "react"
 import { flushSync } from "react-dom"
 import { FaGithub } from "react-icons/fa"
 import { Toaster, toast } from "sonner"
@@ -28,7 +34,7 @@ import { getApiEndpoint } from "@/lib/base-path"
 import { findCachedResponse } from "@/lib/cached-responses"
 import { isPdfFile, isTextFile } from "@/lib/pdf-utils"
 import { type FileData, useFileProcessor } from "@/lib/use-file-processor"
-import { formatXML } from "@/lib/utils"
+import { cn, formatXML } from "@/lib/utils"
 import { ChatMessageDisplay } from "./chat-message-display"
 
 // localStorage keys for persistence
@@ -177,6 +183,18 @@ export default function ChatPanel({
 
     // Flag to track if we've restored from localStorage
     const hasRestoredRef = useRef(false)
+    const [isRestored, setIsRestored] = useState(false)
+
+    // Track previous isVisible to only animate when toggling (not on page load)
+    const prevIsVisibleRef = useRef(isVisible)
+    const [shouldAnimatePanel, setShouldAnimatePanel] = useState(false)
+    useEffect(() => {
+        // Only animate when visibility changes from false to true (not on initial load)
+        if (!prevIsVisibleRef.current && isVisible) {
+            setShouldAnimatePanel(true)
+        }
+        prevIsVisibleRef.current = isVisible
+    }, [isVisible])
 
     // Ref to track latest chartXML for use in callbacks (avoids stale closure)
     const chartXMLRef = useRef(chartXML)
@@ -365,7 +383,8 @@ export default function ChatPanel({
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     // Restore messages and XML snapshots from localStorage on mount
-    useEffect(() => {
+    // useLayoutEffect runs synchronously before browser paint, so messages appear immediately
+    useLayoutEffect(() => {
         if (hasRestoredRef.current) return
         hasRestoredRef.current = true
 
@@ -393,6 +412,8 @@ export default function ChatPanel({
             localStorage.removeItem(STORAGE_MESSAGES_KEY)
             localStorage.removeItem(STORAGE_XML_SNAPSHOTS_KEY)
             toast.error("Session data was corrupted. Starting fresh.")
+        } finally {
+            setIsRestored(true)
         }
     }, [setMessages])
 
@@ -864,7 +885,12 @@ export default function ChatPanel({
 
     // Full view
     return (
-        <div className="h-full flex flex-col bg-card shadow-soft animate-slide-in-right rounded-xl border border-border/30 relative">
+        <div
+            className={cn(
+                "h-full flex flex-col bg-card shadow-soft rounded-xl border border-border/30 relative",
+                shouldAnimatePanel && "animate-slide-in-right",
+            )}
+        >
             <Toaster
                 position="bottom-center"
                 richColors
@@ -913,7 +939,10 @@ export default function ChatPanel({
                             variant="ghost"
                             size="icon"
                             onClick={() => setShowNewChatDialog(true)}
-                            className="hover:bg-accent"
+                            disabled={
+                                status === "streaming" || status === "submitted"
+                            }
+                            className="hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <MessageSquarePlus
                                 className={`${isMobile ? "h-4 w-4" : "h-5 w-5"} text-muted-foreground`}
@@ -986,6 +1015,7 @@ export default function ChatPanel({
                     onRegenerate={handleRegenerate}
                     status={status}
                     onEditMessage={handleEditMessage}
+                    isRestored={isRestored}
                 />
             </main>
 

@@ -192,6 +192,7 @@ interface ChatMessageDisplayProps {
     onRegenerate?: (messageIndex: number) => void
     onEditMessage?: (messageIndex: number, newText: string) => void
     status?: "streaming" | "submitted" | "idle" | "error" | "ready"
+    isRestored?: boolean
 }
 
 export function ChatMessageDisplay({
@@ -204,6 +205,7 @@ export function ChatMessageDisplay({
     onRegenerate,
     onEditMessage,
     status = "idle",
+    isRestored = false,
 }: ChatMessageDisplayProps) {
     const { chartXML, loadDiagram: onDisplayChart } = useDiagram()
     const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -242,6 +244,15 @@ export function ChatMessageDisplay({
     const [expandedPdfSections, setExpandedPdfSections] = useState<
         Record<string, boolean>
     >({})
+    // Track message IDs that were restored from localStorage (skip animation for these)
+    const restoredMessageIdsRef = useRef<Set<string> | null>(null)
+
+    // Capture restored message IDs once when isRestored becomes true
+    useEffect(() => {
+        if (isRestored && restoredMessageIdsRef.current === null) {
+            restoredMessageIdsRef.current = new Set(messages.map((m) => m.id))
+        }
+    }, [isRestored, messages])
 
     const copyMessageToClipboard = async (messageId: string, text: string) => {
         try {
@@ -645,7 +656,8 @@ export function ChatMessageDisplay({
     const renderToolPart = (part: ToolPartLike) => {
         const callId = part.toolCallId
         const { state, input, output } = part
-        const isExpanded = expandedTools[callId] ?? true
+        // Default to collapsed if tool is complete, expanded if still streaming
+        const isExpanded = expandedTools[callId] ?? state !== "output-available"
         const toolName = part.type?.replace("tool-", "")
 
         const toggleExpanded = () => {
@@ -786,9 +798,9 @@ export function ChatMessageDisplay({
 
     return (
         <ScrollArea className="h-full w-full scrollbar-thin">
-            {messages.length === 0 ? (
+            {messages.length === 0 && isRestored ? (
                 <ExamplePanel setInput={setInput} setFiles={setFiles} />
-            ) : (
+            ) : messages.length === 0 ? null : (
                 <div className="py-4 px-4 space-y-4">
                     {messages.map((message, messageIndex) => {
                         const userMessageText =
@@ -808,13 +820,22 @@ export function ChatMessageDisplay({
                                     .slice(messageIndex + 1)
                                     .every((m) => m.role !== "user"))
                         const isEditing = editingMessageId === message.id
+                        // Skip animation for restored messages
+                        const isRestoredMessage =
+                            isRestored &&
+                            (restoredMessageIdsRef.current === null ||
+                                restoredMessageIdsRef.current.has(message.id))
                         return (
                             <div
                                 key={message.id}
-                                className={`flex w-full ${message.role === "user" ? "justify-end" : "justify-start"} animate-message-in`}
-                                style={{
-                                    animationDelay: `${messageIndex * 50}ms`,
-                                }}
+                                className={`flex w-full ${message.role === "user" ? "justify-end" : "justify-start"} ${isRestoredMessage ? "" : "animate-message-in"}`}
+                                style={
+                                    isRestoredMessage
+                                        ? undefined
+                                        : {
+                                              animationDelay: `${messageIndex * 50}ms`,
+                                          }
+                                }
                             >
                                 {message.role === "user" &&
                                     userMessageText &&

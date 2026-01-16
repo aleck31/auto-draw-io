@@ -492,7 +492,10 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
 
         case "openai": {
             const apiKey = overrides?.apiKey || process.env.OPENAI_API_KEY
-            const baseURL = overrides?.baseUrl || process.env.OPENAI_BASE_URL
+            // Only fall back to server's baseURL if user is NOT providing their own API key
+            const baseURL = overrides?.apiKey
+                ? overrides?.baseUrl
+                : overrides?.baseUrl || process.env.OPENAI_BASE_URL
             if (baseURL) {
                 // Custom base URL = third-party proxy, use Chat Completions API
                 // for compatibility (most proxies don't support /responses endpoint)
@@ -511,10 +514,12 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
 
         case "anthropic": {
             const apiKey = overrides?.apiKey || process.env.ANTHROPIC_API_KEY
-            const baseURL =
-                overrides?.baseUrl ||
-                process.env.ANTHROPIC_BASE_URL ||
-                "https://api.anthropic.com/v1"
+            // Only fall back to server's baseURL if user is NOT providing their own API key
+            const baseURL = overrides?.apiKey
+                ? overrides?.baseUrl || "https://api.anthropic.com/v1"
+                : overrides?.baseUrl ||
+                  process.env.ANTHROPIC_BASE_URL ||
+                  "https://api.anthropic.com/v1"
             const customProvider = createAnthropic({
                 apiKey,
                 baseURL,
@@ -529,7 +534,10 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
         case "google": {
             const apiKey =
                 overrides?.apiKey || process.env.GOOGLE_GENERATIVE_AI_API_KEY
-            const baseURL = overrides?.baseUrl || process.env.GOOGLE_BASE_URL
+            // Only fall back to server's baseURL if user is NOT providing their own API key
+            const baseURL = overrides?.apiKey
+                ? overrides?.baseUrl
+                : overrides?.baseUrl || process.env.GOOGLE_BASE_URL
             if (baseURL || overrides?.apiKey) {
                 const customGoogle = createGoogleGenerativeAI({
                     apiKey,
@@ -544,8 +552,10 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
 
         case "openrouter": {
             const apiKey = overrides?.apiKey || process.env.OPENROUTER_API_KEY
-            const baseURL =
-                overrides?.baseUrl || process.env.OPENROUTER_BASE_URL
+            // Only fall back to server's baseURL if user is NOT providing their own API key
+            const baseURL = overrides?.apiKey
+                ? overrides?.baseUrl
+                : overrides?.baseUrl || process.env.OPENROUTER_BASE_URL
             const openrouter = createOpenRouter({
                 apiKey,
                 ...(baseURL && { baseURL }),
