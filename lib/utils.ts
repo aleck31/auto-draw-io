@@ -6,6 +6,21 @@ export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs))
 }
 
+/**
+ * Minimum length for a "real" diagram XML (not just empty template).
+ * Empty mxfile templates are ~147-300 chars; real diagrams are larger.
+ */
+export const MIN_REAL_DIAGRAM_LENGTH = 300
+
+/**
+ * Check if diagram XML represents a real diagram (not just empty template).
+ * @param xml - The diagram XML string to check
+ * @returns true if the XML is a real diagram with content
+ */
+export function isRealDiagram(xml: string | undefined | null): boolean {
+    return !!xml && xml.length > MIN_REAL_DIAGRAM_LENGTH
+}
+
 // ============================================================================
 // XML Validation/Fix Constants
 // ============================================================================

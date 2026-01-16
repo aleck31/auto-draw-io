@@ -30,6 +30,7 @@ import { useDictionary } from "@/hooks/use-dictionary"
 import { formatMessage } from "@/lib/format-message"
 import { isPdfFile, isTextFile } from "@/lib/pdf-utils"
 import type { FlattenedModel } from "@/lib/types/model-config"
+import { isRealDiagram } from "@/lib/utils"
 import { FilePreviewList } from "./file-preview-list"
 
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024 // 2MB
@@ -187,6 +188,7 @@ export function ChatInput({
 }: ChatInputProps) {
     const dict = useDictionary()
     const {
+        chartXML,
         diagramHistory,
         saveDiagramToFile,
         showSaveDialog,
@@ -436,7 +438,7 @@ export function ChatInput({
                             variant="ghost"
                             size="sm"
                             onClick={() => setShowSaveDialog(true)}
-                            disabled={isDisabled}
+                            disabled={isDisabled || !isRealDiagram(chartXML)}
                             tooltipContent={dict.chat.saveDiagram}
                             className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                         >
