@@ -25,6 +25,7 @@ interface DiagramContextType {
         sessionId?: string,
     ) => void
     saveDiagramToStorage: () => Promise<void>
+    capturePng: () => Promise<string>
     isDrawioReady: boolean
     onDrawioLoad: () => void
     resetDrawioReady: () => void
@@ -243,6 +244,28 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         setDiagramHistory([])
     }
 
+    // Capture current diagram as PNG base64 data URL
+    const capturePng = (): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            if (!drawioRef.current) {
+                reject(new Error("Draw.io editor not ready"))
+                return
+            }
+            const timeout = setTimeout(
+                () => reject(new Error("PNG capture timeout")),
+                5000,
+            )
+            saveResolverRef.current = {
+                resolver: (data: string) => {
+                    clearTimeout(timeout)
+                    resolve(data)
+                },
+                format: "png",
+            }
+            drawioRef.current.exportDiagram({ format: "png" })
+        })
+    }
+
     const saveDiagramToFile = (
         filename: string,
         format: ExportFormat,
@@ -355,6 +378,7 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
                 clearDiagram,
                 saveDiagramToFile,
                 saveDiagramToStorage,
+                capturePng,
                 isDrawioReady,
                 onDrawioLoad,
                 resetDrawioReady,

@@ -60,6 +60,8 @@ interface SettingsDialogProps {
     onToggleDrawioUi: () => void
     darkMode: boolean
     onToggleDarkMode: () => void
+    vlmValidation?: boolean
+    onVlmValidationChange?: (value: boolean) => void
 }
 
 export const STORAGE_ACCESS_CODE_KEY = "auto-draw-io-access-code"
@@ -81,6 +83,8 @@ function SettingsContent({
     onToggleDrawioUi,
     darkMode,
     onToggleDarkMode,
+    vlmValidation,
+    onVlmValidationChange,
 }: SettingsDialogProps) {
     const dict = useDictionary()
     const router = useRouter()
@@ -332,6 +336,20 @@ function SettingsContent({
                                 )
                                 onCloseProtectionChange?.(checked)
                             }}
+                        />
+                    </SettingItem>
+
+                    {/* VLM Diagram Validation */}
+                    <SettingItem
+                        label="Diagram Validation (Experimental)"
+                        description="Use VLM to validate diagram quality after generation"
+                    >
+                        <Switch
+                            id="vlm-validation"
+                            checked={vlmValidation ?? false}
+                            onCheckedChange={(checked) =>
+                                onVlmValidationChange?.(checked)
+                            }
                         />
                     </SettingItem>
                 </div>

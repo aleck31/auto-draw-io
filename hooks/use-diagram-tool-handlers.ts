@@ -42,6 +42,8 @@ interface UseDiagramToolHandlersParams {
     onDisplayChart: (xml: string, skipValidation?: boolean) => string | null
     onFetchChart: (saveToHistory?: boolean) => Promise<string>
     onExport: () => void
+    capturePng?: () => Promise<string>
+    vlmValidationEnabled?: boolean
 }
 
 /**
@@ -58,6 +60,8 @@ export function useDiagramToolHandlers({
     onDisplayChart,
     onFetchChart,
     onExport,
+    capturePng,
+    vlmValidationEnabled,
 }: UseDiagramToolHandlersParams) {
     const handleToolCall = async (
         { toolCall }: { toolCall: ToolCall },
@@ -163,6 +167,38 @@ ${finalXml}
                     "[display_diagram] Success! Adding tool output with state: output-available",
                 )
             }
+            // VLM validation: capture PNG and validate before returning success
+            if (vlmValidationEnabled && capturePng) {
+                try {
+                    // Wait for render to complete
+                    await new Promise((r) => setTimeout(r, 500))
+                    const pngData = await capturePng()
+                    const res = await fetch("/api/validate-diagram", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ imageData: pngData }),
+                    })
+                    if (res.ok) {
+                        const result = await res.json()
+                        if (!result.valid && result.suggestions?.length) {
+                            console.log(
+                                "[VLM Validation] Issues found:",
+                                result.issues,
+                            )
+                            addToolOutput({
+                                tool: "display_diagram",
+                                toolCallId: toolCall.toolCallId,
+                                state: "output-error",
+                                errorText: `Diagram displayed but VLM validation found issues:\n${result.issues.map((i: { severity: string; description: string }) => `- [${i.severity}] ${i.description}`).join("\n")}\n\nSuggestions:\n${result.suggestions.join("\n")}\n\nPlease fix these issues and call display_diagram again.`,
+                            })
+                            return
+                        }
+                    }
+                } catch (err) {
+                    console.warn("[VLM Validation] Failed:", err)
+                }
+            }
+
             addToolOutput({
                 tool: "display_diagram",
                 toolCallId: toolCall.toolCallId,

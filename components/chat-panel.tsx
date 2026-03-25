@@ -118,6 +118,7 @@ export default function ChatPanel({
         resolverRef,
         chartXML,
         clearDiagram,
+        capturePng,
     } = useDiagram()
 
     const dict = useDictionary()
@@ -160,6 +161,10 @@ export default function ChatPanel({
     const [input, setInput] = useState("")
     const [showNewChatDialog, setShowNewChatDialog] = useState(false)
     const [minimalStyle, setMinimalStyle] = useState(false)
+    const [vlmValidation, setVlmValidation] = useState(() => {
+        if (typeof window === "undefined") return false
+        return localStorage.getItem("auto-draw-io-vlm-validation") === "true"
+    })
 
     // Restore input from sessionStorage on mount (when ChatPanel remounts due to key change)
     useEffect(() => {
@@ -232,6 +237,8 @@ export default function ChatPanel({
         onDisplayChart,
         onFetchChart,
         onExport,
+        capturePng,
+        vlmValidationEnabled: vlmValidation,
     })
 
     const {
@@ -1063,6 +1070,14 @@ export default function ChatPanel({
                 onToggleDrawioUi={onToggleDrawioUi}
                 darkMode={darkMode}
                 onToggleDarkMode={onToggleDarkMode}
+                vlmValidation={vlmValidation}
+                onVlmValidationChange={(v) => {
+                    setVlmValidation(v)
+                    localStorage.setItem(
+                        "auto-draw-io-vlm-validation",
+                        String(v),
+                    )
+                }}
             />
 
             <ModelConfigDialog

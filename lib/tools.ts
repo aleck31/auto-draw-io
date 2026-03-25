@@ -14,7 +14,7 @@ Available libraries:
 - Networking: cisco19, network, kubernetes, vvd, rack
 - Business: bpmn, lean_mapping
 - General: flowchart, basic, arrows2, infographic, sitemap
-- UI/Mockups: android
+- UI/Mockups: android, material_design
 - Enterprise: citrix, sap, mscae, atlassian
 - Engineering: fluidpower, electrical, pid, cabinets, floorplan
 - Icons: webicons
@@ -23,9 +23,7 @@ Call this tool to get shape names and usage syntax for a specific library.`,
     inputSchema: z.object({
         library: z
             .string()
-            .describe(
-                "Library name (e.g., 'aws4', 'kubernetes', 'flowchart')",
-            ),
+            .describe("Library name (e.g., 'aws4', 'kubernetes', 'flowchart')"),
     }),
     execute: async ({ library }: { library: string }) => {
         // Sanitize input - prevent path traversal attacks
@@ -51,7 +49,7 @@ Call this tool to get shape names and usage syntax for a specific library.`,
             return content
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-                return `Library "${library}" not found. Available: aws4, azure2, gcp2, alibaba_cloud, cisco19, kubernetes, network, bpmn, flowchart, basic, arrows2, vvd, salesforce, citrix, sap, mscae, atlassian, fluidpower, electrical, pid, cabinets, floorplan, webicons, infographic, sitemap, android, lean_mapping, openstack, rack`
+                return `Library "${library}" not found. Available: aws4, azure2, gcp2, alibaba_cloud, cisco19, kubernetes, network, bpmn, flowchart, basic, arrows2, vvd, salesforce, citrix, sap, mscae, atlassian, fluidpower, electrical, pid, cabinets, floorplan, webicons, infographic, sitemap, android, material_design, lean_mapping, openstack, rack`
             }
             console.error(
                 `[get_shape_library] Error loading "${library}":`,
@@ -118,8 +116,7 @@ Returns: List of relevant web pages with titles, URLs, and content snippets.`,
         } catch (error) {
             console.error("[web_search] Error:", error)
             return {
-                error:
-                    error instanceof Error ? error.message : "Search failed",
+                error: error instanceof Error ? error.message : "Search failed",
             }
         }
     },
@@ -160,9 +157,7 @@ Note: Can extract up to 3 URLs at once.`,
             })
 
             if (!response.ok) {
-                throw new Error(
-                    `Tavily Extract API error: ${response.status}`,
-                )
+                throw new Error(`Tavily Extract API error: ${response.status}`)
             }
 
             const data = await response.json()
@@ -188,4 +183,3 @@ Note: Can extract up to 3 URLs at once.`,
         }
     },
 })
-
