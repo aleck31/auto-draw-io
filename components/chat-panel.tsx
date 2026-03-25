@@ -695,6 +695,9 @@ export default function ChatPanel({
                             ...(config.aiModel && { modelId: config.aiModel }),
                             // Bedrock AWS credentials (if applicable)
                             ...(config.aiProvider === "bedrock" && {
+                                ...(config.bedrockApiKey && {
+                                    bedrockApiKey: config.bedrockApiKey,
+                                }),
                                 ...(config.awsAccessKeyId && {
                                     awsAccessKeyId: config.awsAccessKeyId,
                                 }),

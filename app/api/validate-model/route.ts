@@ -74,6 +74,7 @@ interface ValidateRequest {
     baseUrl?: string
     modelId: string
     // AWS Bedrock specific
+    bedrockApiKey?: string
     awsAccessKeyId?: string
     awsSecretAccessKey?: string
     awsRegion?: string
@@ -87,6 +88,7 @@ export async function POST(req: Request) {
             apiKey,
             baseUrl,
             modelId,
+            bedrockApiKey,
             awsAccessKeyId,
             awsSecretAccessKey,
             awsRegion,
@@ -109,11 +111,14 @@ export async function POST(req: Request) {
 
         // Validate credentials based on provider
         if (provider === "bedrock") {
-            if (!awsAccessKeyId || !awsSecretAccessKey || !awsRegion) {
+            if (
+                !bedrockApiKey &&
+                (!awsAccessKeyId || !awsSecretAccessKey || !awsRegion)
+            ) {
                 return NextResponse.json(
                     {
                         valid: false,
-                        error: "AWS credentials (Access Key ID, Secret Access Key, Region) are required",
+                        error: "AWS Bearer Token or credentials (Access Key ID, Secret Access Key, Region) are required",
                     },
                     { status: 400 },
                 )
@@ -156,11 +161,16 @@ export async function POST(req: Request) {
             }
 
             case "bedrock": {
-                const bedrock = createAmazonBedrock({
-                    accessKeyId: awsAccessKeyId,
-                    secretAccessKey: awsSecretAccessKey,
-                    region: awsRegion,
-                })
+                const bedrock = bedrockApiKey
+                    ? createAmazonBedrock({
+                          apiKey: bedrockApiKey,
+                          region: awsRegion || "us-east-1",
+                      })
+                    : createAmazonBedrock({
+                          accessKeyId: awsAccessKeyId,
+                          secretAccessKey: awsSecretAccessKey,
+                          region: awsRegion,
+                      })
                 model = bedrock(modelId)
                 break
             }

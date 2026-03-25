@@ -13,6 +13,8 @@ This guide explains how to configure different AI model providers for auto-draw-
 
 ### AWS Bedrock
 
+**Option 1: IAM Credentials (AK/SK)**
+
 ```bash
 AWS_REGION=us-west-2
 AWS_ACCESS_KEY_ID=your_access_key_id
@@ -20,7 +22,15 @@ AWS_SECRET_ACCESS_KEY=your_secret_access_key
 AI_MODEL=anthropic.claude-sonnet-4-5-20250514-v1:0
 ```
 
-Note: On AWS (Lambda, EC2 with IAM role), credentials are automatically obtained from the IAM role.
+**Option 2: API Key (Bearer Token)**
+
+```bash
+AWS_REGION=us-east-1
+AWS_BEARER_TOKEN_BEDROCK=your_bedrock_api_key
+AI_MODEL=anthropic.claude-sonnet-4-5-20250514-v1:0
+```
+
+Note: On AWS (Lambda, EC2 with IAM role), credentials are automatically obtained from the IAM role. Bearer Token auth is simpler for quick prototyping — generate one from the [Bedrock console](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys-generate.html).
 
 ### OpenAI
 

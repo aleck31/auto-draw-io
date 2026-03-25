@@ -168,7 +168,7 @@ npm run dev
 
 除AWS Bedrock和OpenRouter外，其它 Provider 支持自定义端点。
 
-📖 **[详细的提供商配置指南](./ai-providers.md)** - 查看各提供商的设置说明。
+📖 **[详细的提供商配置指南](./docs/ai-providers.md)** - 查看各提供商的设置说明。
 
 **模型要求**：此任务需要强大的模型能力，因为它涉及生成具有严格格式约束的长文本（draw.io XML）。推荐使用Claude Sonnet 4.5、GPT-4o、Gemini 2.0和DeepSeek V3/R1。
 

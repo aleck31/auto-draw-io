@@ -258,7 +258,11 @@ export function ModelConfigDialog({
         // Check credentials based on provider type
         const isBedrock = selectedProvider.provider === "bedrock"
         if (isBedrock) {
-            if (
+            const useBearerToken =
+                selectedProvider.bedrockAuthType === "bearerToken"
+            if (useBearerToken) {
+                if (!selectedProvider.bedrockApiKey) return
+            } else if (
                 !selectedProvider.awsAccessKeyId ||
                 !selectedProvider.awsSecretAccessKey ||
                 !selectedProvider.awsRegion
@@ -297,6 +301,7 @@ export function ModelConfigDialog({
                         baseUrl: selectedProvider.baseUrl,
                         modelId: model.modelId,
                         // AWS Bedrock credentials
+                        bedrockApiKey: selectedProvider.bedrockApiKey,
                         awsAccessKeyId: selectedProvider.awsAccessKeyId,
                         awsSecretAccessKey: selectedProvider.awsSecretAccessKey,
                         awsRegion: selectedProvider.awsRegion,
@@ -592,174 +597,359 @@ export function ModelConfigDialog({
                                                 {selectedProvider.provider ===
                                                 "bedrock" ? (
                                                     <>
-                                                        {/* AWS Access Key ID */}
+                                                        {/* Auth Type Toggle */}
                                                         <div className="space-y-2">
-                                                            <Label
-                                                                htmlFor="aws-access-key-id"
-                                                                className="text-xs font-medium flex items-center gap-1.5"
-                                                            >
+                                                            <Label className="text-xs font-medium flex items-center gap-1.5">
                                                                 <Key className="h-3.5 w-3.5 text-muted-foreground" />
                                                                 {
                                                                     dict
                                                                         .modelConfig
-                                                                        .awsAccessKeyId
-                                                                }
-                                                            </Label>
-                                                            <PasswordInput
-                                                                id="aws-access-key-id"
-                                                                value={
-                                                                    selectedProvider.awsAccessKeyId ||
-                                                                    ""
-                                                                }
-                                                                onChange={(
-                                                                    value,
-                                                                ) =>
-                                                                    handleProviderUpdate(
-                                                                        "awsAccessKeyId",
-                                                                        value,
-                                                                    )
-                                                                }
-                                                                placeholder={
-                                                                    dict
-                                                                        .modelConfig
-                                                                        .enterAccessKey
-                                                                }
-                                                                className="h-9 font-mono text-xs"
-                                                                aria-label="AWS Access Key ID"
-                                                            />
-                                                        </div>
-
-                                                        {/* AWS Secret Access Key */}
-                                                        <div className="space-y-2">
-                                                            <Label
-                                                                htmlFor="aws-secret-access-key"
-                                                                className="text-xs font-medium flex items-center gap-1.5"
-                                                            >
-                                                                <Key className="h-3.5 w-3.5 text-muted-foreground" />
-                                                                {
-                                                                    dict
-                                                                        .modelConfig
-                                                                        .awsSecretAccessKey
-                                                                }
-                                                            </Label>
-                                                            <PasswordInput
-                                                                id="aws-secret-access-key"
-                                                                value={
-                                                                    selectedProvider.awsSecretAccessKey ||
-                                                                    ""
-                                                                }
-                                                                onChange={(
-                                                                    value,
-                                                                ) =>
-                                                                    handleProviderUpdate(
-                                                                        "awsSecretAccessKey",
-                                                                        value,
-                                                                    )
-                                                                }
-                                                                placeholder={
-                                                                    dict
-                                                                        .modelConfig
-                                                                        .enterSecretKey
-                                                                }
-                                                                className="h-9 font-mono text-xs"
-                                                                aria-label="AWS Secret Access Key"
-                                                            />
-                                                        </div>
-
-                                                        {/* AWS Region */}
-                                                        <div className="space-y-2">
-                                                            <Label
-                                                                htmlFor="aws-region"
-                                                                className="text-xs font-medium flex items-center gap-1.5"
-                                                            >
-                                                                <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-                                                                {
-                                                                    dict
-                                                                        .modelConfig
-                                                                        .awsRegion
+                                                                        .bedrockAuthType
                                                                 }
                                                             </Label>
                                                             <Select
                                                                 value={
-                                                                    selectedProvider.awsRegion ||
-                                                                    ""
+                                                                    selectedProvider.bedrockAuthType ||
+                                                                    "credentials"
                                                                 }
                                                                 onValueChange={(
                                                                     v,
                                                                 ) =>
                                                                     handleProviderUpdate(
-                                                                        "awsRegion",
+                                                                        "bedrockAuthType",
                                                                         v,
                                                                     )
                                                                 }
                                                             >
-                                                                <SelectTrigger className="h-9 font-mono text-xs hover:bg-accent">
-                                                                    <SelectValue
-                                                                        placeholder={
+                                                                <SelectTrigger className="h-9 text-xs hover:bg-accent">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="credentials">
+                                                                        {
                                                                             dict
                                                                                 .modelConfig
-                                                                                .selectRegion
+                                                                                .bedrockCredentials
                                                                         }
-                                                                    />
-                                                                </SelectTrigger>
-                                                                <SelectContent className="max-h-64">
-                                                                    <SelectItem value="us-east-1">
-                                                                        us-east-1
-                                                                        (N.
-                                                                        Virginia)
                                                                     </SelectItem>
-                                                                    <SelectItem value="us-east-2">
-                                                                        us-east-2
-                                                                        (Ohio)
-                                                                    </SelectItem>
-                                                                    <SelectItem value="us-west-2">
-                                                                        us-west-2
-                                                                        (Oregon)
-                                                                    </SelectItem>
-                                                                    <SelectItem value="eu-west-1">
-                                                                        eu-west-1
-                                                                        (Ireland)
-                                                                    </SelectItem>
-                                                                    <SelectItem value="eu-west-2">
-                                                                        eu-west-2
-                                                                        (London)
-                                                                    </SelectItem>
-                                                                    <SelectItem value="eu-west-3">
-                                                                        eu-west-3
-                                                                        (Paris)
-                                                                    </SelectItem>
-                                                                    <SelectItem value="eu-central-1">
-                                                                        eu-central-1
-                                                                        (Frankfurt)
-                                                                    </SelectItem>
-                                                                    <SelectItem value="ap-south-1">
-                                                                        ap-south-1
-                                                                        (Mumbai)
-                                                                    </SelectItem>
-                                                                    <SelectItem value="ap-northeast-1">
-                                                                        ap-northeast-1
-                                                                        (Tokyo)
-                                                                    </SelectItem>
-                                                                    <SelectItem value="ap-northeast-2">
-                                                                        ap-northeast-2
-                                                                        (Seoul)
-                                                                    </SelectItem>
-                                                                    <SelectItem value="ap-southeast-1">
-                                                                        ap-southeast-1
-                                                                        (Singapore)
-                                                                    </SelectItem>
-                                                                    <SelectItem value="ap-southeast-2">
-                                                                        ap-southeast-2
-                                                                        (Sydney)
-                                                                    </SelectItem>
-                                                                    <SelectItem value="sa-east-1">
-                                                                        sa-east-1
-                                                                        (São
-                                                                        Paulo)
+                                                                    <SelectItem value="bearerToken">
+                                                                        {
+                                                                            dict
+                                                                                .modelConfig
+                                                                                .bedrockBearerToken
+                                                                        }
                                                                     </SelectItem>
                                                                 </SelectContent>
                                                             </Select>
                                                         </div>
+
+                                                        {selectedProvider.bedrockAuthType ===
+                                                        "bearerToken" ? (
+                                                            <>
+                                                                {/* Bedrock API Key (Bearer Token) */}
+                                                                <div className="space-y-2">
+                                                                    <Label
+                                                                        htmlFor="bedrock-api-key"
+                                                                        className="text-xs font-medium flex items-center gap-1.5"
+                                                                    >
+                                                                        <Key className="h-3.5 w-3.5 text-muted-foreground" />
+                                                                        {
+                                                                            dict
+                                                                                .modelConfig
+                                                                                .bedrockApiKey
+                                                                        }
+                                                                    </Label>
+                                                                    <PasswordInput
+                                                                        id="bedrock-api-key"
+                                                                        value={
+                                                                            selectedProvider.bedrockApiKey ||
+                                                                            ""
+                                                                        }
+                                                                        onChange={(
+                                                                            value,
+                                                                        ) =>
+                                                                            handleProviderUpdate(
+                                                                                "bedrockApiKey",
+                                                                                value,
+                                                                            )
+                                                                        }
+                                                                        placeholder={
+                                                                            dict
+                                                                                .modelConfig
+                                                                                .enterBedrockApiKey
+                                                                        }
+                                                                        className="h-9 font-mono text-xs"
+                                                                        aria-label="Bedrock API Key"
+                                                                    />
+                                                                </div>
+
+                                                                {/* AWS Region for Bearer Token */}
+                                                                <div className="space-y-2">
+                                                                    <Label
+                                                                        htmlFor="aws-region-bearer"
+                                                                        className="text-xs font-medium flex items-center gap-1.5"
+                                                                    >
+                                                                        <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                                                        {
+                                                                            dict
+                                                                                .modelConfig
+                                                                                .awsRegion
+                                                                        }
+                                                                    </Label>
+                                                                    <Select
+                                                                        value={
+                                                                            selectedProvider.awsRegion ||
+                                                                            ""
+                                                                        }
+                                                                        onValueChange={(
+                                                                            v,
+                                                                        ) =>
+                                                                            handleProviderUpdate(
+                                                                                "awsRegion",
+                                                                                v,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <SelectTrigger className="h-9 font-mono text-xs hover:bg-accent">
+                                                                            <SelectValue
+                                                                                placeholder={
+                                                                                    dict
+                                                                                        .modelConfig
+                                                                                        .selectRegion
+                                                                                }
+                                                                            />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent className="max-h-64">
+                                                                            <SelectItem value="us-east-1">
+                                                                                us-east-1
+                                                                                (N.
+                                                                                Virginia)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="us-east-2">
+                                                                                us-east-2
+                                                                                (Ohio)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="us-west-2">
+                                                                                us-west-2
+                                                                                (Oregon)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="eu-west-1">
+                                                                                eu-west-1
+                                                                                (Ireland)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="eu-west-2">
+                                                                                eu-west-2
+                                                                                (London)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="eu-west-3">
+                                                                                eu-west-3
+                                                                                (Paris)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="eu-central-1">
+                                                                                eu-central-1
+                                                                                (Frankfurt)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="ap-south-1">
+                                                                                ap-south-1
+                                                                                (Mumbai)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="ap-northeast-1">
+                                                                                ap-northeast-1
+                                                                                (Tokyo)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="ap-northeast-2">
+                                                                                ap-northeast-2
+                                                                                (Seoul)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="ap-southeast-1">
+                                                                                ap-southeast-1
+                                                                                (Singapore)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="ap-southeast-2">
+                                                                                ap-southeast-2
+                                                                                (Sydney)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="sa-east-1">
+                                                                                sa-east-1
+                                                                                (São
+                                                                                Paulo)
+                                                                            </SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </div>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                {/* AWS Access Key ID */}
+                                                                <div className="space-y-2">
+                                                                    <Label
+                                                                        htmlFor="aws-access-key-id"
+                                                                        className="text-xs font-medium flex items-center gap-1.5"
+                                                                    >
+                                                                        <Key className="h-3.5 w-3.5 text-muted-foreground" />
+                                                                        {
+                                                                            dict
+                                                                                .modelConfig
+                                                                                .awsAccessKeyId
+                                                                        }
+                                                                    </Label>
+                                                                    <PasswordInput
+                                                                        id="aws-access-key-id"
+                                                                        value={
+                                                                            selectedProvider.awsAccessKeyId ||
+                                                                            ""
+                                                                        }
+                                                                        onChange={(
+                                                                            value,
+                                                                        ) =>
+                                                                            handleProviderUpdate(
+                                                                                "awsAccessKeyId",
+                                                                                value,
+                                                                            )
+                                                                        }
+                                                                        placeholder={
+                                                                            dict
+                                                                                .modelConfig
+                                                                                .enterAccessKey
+                                                                        }
+                                                                        className="h-9 font-mono text-xs"
+                                                                        aria-label="AWS Access Key ID"
+                                                                    />
+                                                                </div>
+
+                                                                {/* AWS Secret Access Key */}
+                                                                <div className="space-y-2">
+                                                                    <Label
+                                                                        htmlFor="aws-secret-access-key"
+                                                                        className="text-xs font-medium flex items-center gap-1.5"
+                                                                    >
+                                                                        <Key className="h-3.5 w-3.5 text-muted-foreground" />
+                                                                        {
+                                                                            dict
+                                                                                .modelConfig
+                                                                                .awsSecretAccessKey
+                                                                        }
+                                                                    </Label>
+                                                                    <PasswordInput
+                                                                        id="aws-secret-access-key"
+                                                                        value={
+                                                                            selectedProvider.awsSecretAccessKey ||
+                                                                            ""
+                                                                        }
+                                                                        onChange={(
+                                                                            value,
+                                                                        ) =>
+                                                                            handleProviderUpdate(
+                                                                                "awsSecretAccessKey",
+                                                                                value,
+                                                                            )
+                                                                        }
+                                                                        placeholder={
+                                                                            dict
+                                                                                .modelConfig
+                                                                                .enterSecretKey
+                                                                        }
+                                                                        className="h-9 font-mono text-xs"
+                                                                        aria-label="AWS Secret Access Key"
+                                                                    />
+                                                                </div>
+
+                                                                {/* AWS Region */}
+                                                                <div className="space-y-2">
+                                                                    <Label
+                                                                        htmlFor="aws-region"
+                                                                        className="text-xs font-medium flex items-center gap-1.5"
+                                                                    >
+                                                                        <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                                                        {
+                                                                            dict
+                                                                                .modelConfig
+                                                                                .awsRegion
+                                                                        }
+                                                                    </Label>
+                                                                    <Select
+                                                                        value={
+                                                                            selectedProvider.awsRegion ||
+                                                                            ""
+                                                                        }
+                                                                        onValueChange={(
+                                                                            v,
+                                                                        ) =>
+                                                                            handleProviderUpdate(
+                                                                                "awsRegion",
+                                                                                v,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <SelectTrigger className="h-9 font-mono text-xs hover:bg-accent">
+                                                                            <SelectValue
+                                                                                placeholder={
+                                                                                    dict
+                                                                                        .modelConfig
+                                                                                        .selectRegion
+                                                                                }
+                                                                            />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent className="max-h-64">
+                                                                            <SelectItem value="us-east-1">
+                                                                                us-east-1
+                                                                                (N.
+                                                                                Virginia)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="us-east-2">
+                                                                                us-east-2
+                                                                                (Ohio)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="us-west-2">
+                                                                                us-west-2
+                                                                                (Oregon)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="eu-west-1">
+                                                                                eu-west-1
+                                                                                (Ireland)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="eu-west-2">
+                                                                                eu-west-2
+                                                                                (London)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="eu-west-3">
+                                                                                eu-west-3
+                                                                                (Paris)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="eu-central-1">
+                                                                                eu-central-1
+                                                                                (Frankfurt)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="ap-south-1">
+                                                                                ap-south-1
+                                                                                (Mumbai)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="ap-northeast-1">
+                                                                                ap-northeast-1
+                                                                                (Tokyo)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="ap-northeast-2">
+                                                                                ap-northeast-2
+                                                                                (Seoul)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="ap-southeast-1">
+                                                                                ap-southeast-1
+                                                                                (Singapore)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="ap-southeast-2">
+                                                                                ap-southeast-2
+                                                                                (Sydney)
+                                                                            </SelectItem>
+                                                                            <SelectItem value="sa-east-1">
+                                                                                sa-east-1
+                                                                                (São
+                                                                                Paulo)
+                                                                            </SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </div>
+                                                            </>
+                                                        )}
 
                                                         {/* Test Button for Bedrock */}
                                                         <div className="flex items-center gap-2">
@@ -775,9 +965,12 @@ export function ModelConfigDialog({
                                                                     handleValidate
                                                                 }
                                                                 disabled={
-                                                                    !selectedProvider.awsAccessKeyId ||
-                                                                    !selectedProvider.awsSecretAccessKey ||
-                                                                    !selectedProvider.awsRegion ||
+                                                                    (selectedProvider.bedrockAuthType ===
+                                                                    "bearerToken"
+                                                                        ? !selectedProvider.bedrockApiKey
+                                                                        : !selectedProvider.awsAccessKeyId ||
+                                                                          !selectedProvider.awsSecretAccessKey ||
+                                                                          !selectedProvider.awsRegion) ||
                                                                     validationStatus ===
                                                                         "validating"
                                                                 }

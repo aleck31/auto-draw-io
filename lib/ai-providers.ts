@@ -25,6 +25,7 @@ export interface ClientOverrides {
     apiKey?: string | null
     modelId?: string | null
     // AWS Bedrock credentials
+    bedrockApiKey?: string | null // Bearer Token auth
     awsAccessKeyId?: string | null
     awsSecretAccessKey?: string | null
     awsRegion?: string | null
@@ -458,22 +459,31 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
             // Use client-provided credentials if available, otherwise fall back to IAM/env vars
             const hasClientCredentials =
                 overrides?.awsAccessKeyId && overrides?.awsSecretAccessKey
+            const hasBearerToken = !!overrides?.bedrockApiKey
             const bedrockRegion =
                 overrides?.awsRegion || process.env.AWS_REGION || "us-west-2"
 
-            const bedrockProvider = hasClientCredentials
-                ? createAmazonBedrock({
-                      region: bedrockRegion,
-                      accessKeyId: overrides.awsAccessKeyId!,
-                      secretAccessKey: overrides.awsSecretAccessKey!,
-                      ...(overrides?.awsSessionToken && {
-                          sessionToken: overrides.awsSessionToken,
-                      }),
-                  })
-                : createAmazonBedrock({
-                      region: bedrockRegion,
-                      credentialProvider: fromNodeProviderChain(),
-                  })
+            let bedrockProvider
+            if (hasBearerToken) {
+                bedrockProvider = createAmazonBedrock({
+                    region: bedrockRegion,
+                    apiKey: overrides.bedrockApiKey!,
+                })
+            } else if (hasClientCredentials) {
+                bedrockProvider = createAmazonBedrock({
+                    region: bedrockRegion,
+                    accessKeyId: overrides.awsAccessKeyId!,
+                    secretAccessKey: overrides.awsSecretAccessKey!,
+                    ...(overrides?.awsSessionToken && {
+                        sessionToken: overrides.awsSessionToken,
+                    }),
+                })
+            } else {
+                bedrockProvider = createAmazonBedrock({
+                    region: bedrockRegion,
+                    credentialProvider: fromNodeProviderChain(),
+                })
+            }
             model = bedrockProvider(modelId)
             // Add Anthropic beta options if using Claude models via Bedrock
             if (modelId.includes("anthropic.claude")) {

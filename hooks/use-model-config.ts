@@ -311,6 +311,7 @@ export function getSelectedAIConfig(): {
     aiApiKey: string
     aiModel: string
     // AWS Bedrock credentials
+    bedrockApiKey: string
     awsAccessKeyId: string
     awsSecretAccessKey: string
     awsRegion: string
@@ -324,6 +325,7 @@ export function getSelectedAIConfig(): {
         aiBaseUrl: "",
         aiApiKey: "",
         aiModel: "",
+        bedrockApiKey: "",
         awsAccessKeyId: "",
         awsSecretAccessKey: "",
         awsRegion: "",
@@ -347,6 +349,7 @@ export function getSelectedAIConfig(): {
             aiApiKey: localStorage.getItem(OLD_KEYS.aiApiKey) || "",
             aiModel: localStorage.getItem(OLD_KEYS.aiModel) || "",
             // Old format didn't support these fields
+            bedrockApiKey: "",
             awsAccessKeyId: "",
             awsSecretAccessKey: "",
             awsRegion: "",
@@ -380,6 +383,7 @@ export function getSelectedAIConfig(): {
         aiApiKey: model.apiKey,
         aiModel: model.modelId,
         // AWS Bedrock credentials
+        bedrockApiKey: model.bedrockApiKey || "",
         awsAccessKeyId: model.awsAccessKeyId || "",
         awsSecretAccessKey: model.awsSecretAccessKey || "",
         awsRegion: model.awsRegion || "",

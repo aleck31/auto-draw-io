@@ -23,6 +23,8 @@ export interface ProviderConfig {
     apiKey: string
     baseUrl?: string
     // AWS Bedrock specific fields
+    bedrockAuthType?: "credentials" | "bearerToken" // Default: "credentials"
+    bedrockApiKey?: string // Bearer Token for Bedrock API key auth
     awsAccessKeyId?: string
     awsSecretAccessKey?: string
     awsRegion?: string
@@ -48,6 +50,8 @@ export interface FlattenedModel {
     apiKey: string
     baseUrl?: string
     // AWS Bedrock specific fields
+    bedrockAuthType?: "credentials" | "bearerToken"
+    bedrockApiKey?: string
     awsAccessKeyId?: string
     awsSecretAccessKey?: string
     awsRegion?: string
@@ -232,6 +236,8 @@ export function flattenModels(config: MultiModelConfig): FlattenedModel[] {
                 apiKey: provider.apiKey,
                 baseUrl: provider.baseUrl,
                 // AWS Bedrock fields
+                bedrockAuthType: provider.bedrockAuthType,
+                bedrockApiKey: provider.bedrockApiKey,
                 awsAccessKeyId: provider.awsAccessKeyId,
                 awsSecretAccessKey: provider.awsSecretAccessKey,
                 awsRegion: provider.awsRegion,
