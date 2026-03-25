@@ -600,6 +600,7 @@ export default function ChatPanel({
 
     const handleNewChat = useCallback(() => {
         setMessages([])
+        setInput("")
         clearDiagram()
         handleFileChange([]) // Use handleFileChange to also clear pdfData
         const newSessionId = `session-${Date.now()}-${Math.random()
@@ -623,7 +624,12 @@ export default function ChatPanel({
         }
 
         setShowNewChatDialog(false)
-    }, [clearDiagram, handleFileChange, setMessages, setSessionId])
+
+        // Focus input after clearing
+        setTimeout(() => {
+            document.querySelector<HTMLTextAreaElement>("textarea")?.focus()
+        }, 100)
+    }, [clearDiagram, handleFileChange, setMessages, setInput, setSessionId])
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -1032,6 +1038,7 @@ export default function ChatPanel({
                     onSubmit={onFormSubmit}
                     onChange={handleInputChange}
                     onClearChat={handleNewChat}
+                    onStop={stop}
                     files={files}
                     onFileChange={handleFileChange}
                     pdfData={pdfData}

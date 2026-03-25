@@ -438,6 +438,7 @@ ${userInputText}
 
     const result = streamText({
         model,
+        abortSignal: req.signal,
         ...(process.env.MAX_OUTPUT_TOKENS && {
             maxOutputTokens: parseInt(process.env.MAX_OUTPUT_TOKENS, 10),
         }),
@@ -465,6 +466,12 @@ ${userInputText}
                         inputToRepair = inputToRepair.replace(/:=/g, ": ")
                         // Fix `= "` instead of `: "`
                         inputToRepair = inputToRepair.replace(/=\s*"/g, ': "')
+                        // Fix inconsistent quote escaping in XML attributes within JSON strings
+                        // Pattern: attribute="value\" where opening quote is unescaped but closing is escaped
+                        inputToRepair = inputToRepair.replace(
+                            /(\w+)="([^"]*?)\\"/g,
+                            '$1=\\"$2\\"',
+                        )
                     }
                     // Use jsonrepair to fix truncated JSON
                     const repairedInput = jsonrepair(inputToRepair)

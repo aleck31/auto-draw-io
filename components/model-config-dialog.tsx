@@ -410,12 +410,12 @@ export function ModelConfigDialog({
                                             }}
                                             className={cn(
                                                 "group flex items-center gap-3 px-3 py-2.5 rounded-xl w-full",
-                                                "text-left text-sm transition-all duration-150",
+                                                "text-left text-sm transition-all duration-150 border border-transparent",
                                                 "hover:bg-interactive-hover",
                                                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                                                 selectedProviderId ===
                                                     provider.id &&
-                                                    "bg-surface-0 shadow-sm ring-1 ring-border-subtle",
+                                                    "bg-surface-0 shadow-sm border-border-subtle",
                                             )}
                                         >
                                             <div
@@ -1567,12 +1567,16 @@ export function ModelConfigDialog({
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Switch
+                                id="show-unvalidated-models"
                                 checked={modelConfig.showUnvalidatedModels}
                                 onCheckedChange={
                                     modelConfig.setShowUnvalidatedModels
                                 }
                             />
-                            <Label className="text-xs text-muted-foreground cursor-pointer">
+                            <Label
+                                htmlFor="show-unvalidated-models"
+                                className="text-xs text-muted-foreground cursor-pointer"
+                            >
                                 {dict.modelConfig.showUnvalidatedModels}
                             </Label>
                         </div>

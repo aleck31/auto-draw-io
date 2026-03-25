@@ -6,6 +6,7 @@ import {
     Image as ImageIcon,
     Loader2,
     Send,
+    Square,
     Trash2,
 } from "lucide-react"
 import type React from "react"
@@ -147,6 +148,7 @@ interface ChatInputProps {
     onSubmit: (e: React.FormEvent<HTMLFormElement>) => void
     onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
     onClearChat: () => void
+    onStop?: () => void
     files?: File[]
     onFileChange?: (files: File[]) => void
     pdfData?: Map<
@@ -172,6 +174,7 @@ export function ChatInput({
     onSubmit,
     onChange,
     onClearChat,
+    onStop,
     files = [],
     onFileChange = () => {},
     pdfData = new Map(),
@@ -489,8 +492,9 @@ export function ChatInput({
                         <div className="w-px h-5 bg-border mx-1" />
 
                         <Button
-                            type="submit"
-                            disabled={isDisabled || !input.trim()}
+                            type={isDisabled ? "button" : "submit"}
+                            onClick={isDisabled && onStop ? onStop : undefined}
+                            disabled={isDisabled ? !onStop : !input.trim()}
                             size="sm"
                             className="h-8 px-4 rounded-xl font-medium shadow-sm"
                             aria-label={
@@ -498,7 +502,7 @@ export function ChatInput({
                             }
                         >
                             {isDisabled ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <Square className="h-3.5 w-3.5 fill-current" />
                             ) : (
                                 <>
                                     <Send className="h-4 w-4 mr-1.5" />
