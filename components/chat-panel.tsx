@@ -165,6 +165,19 @@ export default function ChatPanel({
         if (typeof window === "undefined") return false
         return localStorage.getItem("auto-draw-io-vlm-validation") === "true"
     })
+    const [serverModels, setServerModels] = useState<string[]>([])
+
+    // Fetch server models on mount
+    useEffect(() => {
+        fetch(getApiEndpoint("/api/config"))
+            .then((r) => r.json())
+            .then((data) => {
+                if (data.serverModels?.length) {
+                    setServerModels(data.serverModels)
+                }
+            })
+            .catch(() => {})
+    }, [])
 
     // Restore input from sessionStorage on mount (when ChatPanel remounts due to key change)
     useEffect(() => {
@@ -690,6 +703,12 @@ export default function ChatPanel({
 
         const config = getSelectedAIConfig()
 
+        // Determine if user selected a specific server model (not the default first one)
+        const selectedId = modelConfig.selectedModelId
+        const serverModelId = selectedId?.startsWith("__server__:")
+            ? selectedId.replace("__server__:", "")
+            : undefined
+
         sendMessage(
             { parts },
             {
@@ -697,6 +716,7 @@ export default function ChatPanel({
                     xml,
                     previousXml,
                     sessionId,
+                    ...(serverModelId && { serverModelId }),
                     // Move sensitive data to request body for better security
                     ...(config.aiProvider && {
                         aiConfig: {
@@ -1059,6 +1079,7 @@ export default function ChatPanel({
                     selectedModelId={modelConfig.selectedModelId}
                     onModelSelect={modelConfig.setSelectedModelId}
                     showUnvalidatedModels={modelConfig.showUnvalidatedModels}
+                    serverModels={serverModels}
                 />
             </footer>
 

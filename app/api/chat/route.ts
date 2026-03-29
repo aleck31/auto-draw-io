@@ -147,8 +147,15 @@ function createCachedStreamResponse(xml: string): Response {
 
 // Inner handler function
 async function handleChatRequest(req: Request): Promise<Response> {
-    const { messages, xml, previousXml, sessionId, aiConfig, tavilyApiKey } =
-        await req.json()
+    const {
+        messages,
+        xml,
+        previousXml,
+        sessionId,
+        aiConfig,
+        tavilyApiKey,
+        serverModelId,
+    } = await req.json()
 
     // Check if user is using their own LLM provider
     // For Bedrock: check AWS credentials or Bearer Token; For others: check apiKey
@@ -163,13 +170,10 @@ async function handleChatRequest(req: Request): Promise<Response> {
 
     // Check for access code (only required when using server-side default model)
     if (!hasOwnProvider) {
-        const accessCodes =
-            process.env.ACCESS_CODE_LIST?.split(",")
-                .map((code) => code.trim())
-                .filter(Boolean) || []
-        if (accessCodes.length > 0) {
-            const accessCodeHeader = req.headers.get("x-access-code")
-            if (!accessCodeHeader || !accessCodes.includes(accessCodeHeader)) {
+        const accessCode = process.env.ACCESS_CODE?.trim()
+        if (accessCode) {
+            const provided = req.headers.get("x-access-code")
+            if (!provided || provided !== accessCode) {
                 return Response.json(
                     {
                         error: "Invalid or missing access code. Please configure it in Settings to use server-side model, or configure your own LLM provider in Model Configuration.",
@@ -230,6 +234,26 @@ async function handleChatRequest(req: Request): Promise<Response> {
 
     // Read client AI provider overrides from request body (more secure than headers)
     const clientOverrides = aiConfig || {}
+
+    // If user selected a specific server model, validate and override
+    if (serverModelId && !aiConfig?.provider) {
+        const allowedModels = (process.env.AI_MODELS || "")
+            .split(",")
+            .map((m: string) => m.trim())
+            .filter(Boolean)
+        if (
+            allowedModels.length > 0 &&
+            !allowedModels.includes(serverModelId)
+        ) {
+            return Response.json(
+                {
+                    error: `Model "${serverModelId}" is not available on this server.`,
+                },
+                { status: 400 },
+            )
+        }
+        clientOverrides.modelId = serverModelId
+    }
 
     // Read minimal style preference from header
     const minimalStyle = req.headers.get("x-minimal-style") === "true"

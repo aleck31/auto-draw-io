@@ -33,6 +33,7 @@ interface ModelSelectorProps {
     onSelect: (modelId: string | undefined) => void
     disabled?: boolean
     showUnvalidatedModels?: boolean
+    serverModels?: string[]
 }
 
 // Group models by providerLabel (handles duplicate providers)
@@ -61,6 +62,7 @@ export function ModelSelector({
     onSelect,
     disabled = false,
     showUnvalidatedModels = false,
+    serverModels = [],
 }: ModelSelectorProps) {
     const dict = useDictionary()
     const [open, setOpen] = useState(false)
@@ -85,15 +87,23 @@ export function ModelSelector({
     const handleSelect = (value: string) => {
         if (value === "__server_default__") {
             onSelect(undefined)
+        } else if (value.startsWith("__server__:")) {
+            onSelect(value)
         } else {
             onSelect(value)
         }
         setOpen(false)
     }
 
+    const selectedServerModel = selectedModelId?.startsWith("__server__:")
+        ? selectedModelId.replace("__server__:", "")
+        : undefined
+
     const tooltipContent = selectedModel
         ? `${selectedModel.modelId} ${dict.modelConfig.clickToChange}`
-        : `${dict.modelConfig.usingServerDefault} ${dict.modelConfig.clickToChange}`
+        : selectedServerModel
+          ? `${selectedServerModel} ${dict.modelConfig.clickToChange}`
+          : `${dict.modelConfig.usingServerDefault} ${dict.modelConfig.clickToChange}`
 
     return (
         <ModelSelectorRoot open={open} onOpenChange={setOpen}>
@@ -109,7 +119,7 @@ export function ModelSelector({
                     <span className="text-xs truncate">
                         {selectedModel
                             ? selectedModel.modelId
-                            : "Build-in model"}
+                            : selectedServerModel || "Server default"}
                     </span>
                     <ChevronDown className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
                 </ButtonWithTooltip>
@@ -125,30 +135,71 @@ export function ModelSelector({
                             : dict.modelConfig.noModelsFound}
                     </ModelSelectorEmpty>
 
-                    {/* Server Default Option */}
-                    <ModelSelectorGroup heading="Server-side Config">
-                        <ModelSelectorItem
-                            value="__server_default__"
-                            onSelect={handleSelect}
-                            className={cn(
-                                "cursor-pointer",
-                                !selectedModelId && "bg-accent",
-                            )}
-                        >
-                            <Check
+                    {/* Server Models */}
+                    {serverModels.length > 0 ? (
+                        <ModelSelectorGroup heading="Server-side Models">
+                            {serverModels.map((modelId, index) => (
+                                <ModelSelectorItem
+                                    key={`server:${modelId}`}
+                                    value={`__server__:${modelId}`}
+                                    onSelect={() =>
+                                        handleSelect(
+                                            index === 0
+                                                ? "__server_default__"
+                                                : `__server__:${modelId}`,
+                                        )
+                                    }
+                                    className={cn(
+                                        "cursor-pointer",
+                                        (!selectedModelId && index === 0) ||
+                                            selectedModelId ===
+                                                `__server__:${modelId}`
+                                            ? "bg-accent"
+                                            : "",
+                                    )}
+                                >
+                                    <Check
+                                        className={cn(
+                                            "mr-2 h-4 w-4",
+                                            (!selectedModelId && index === 0) ||
+                                                selectedModelId ===
+                                                    `__server__:${modelId}`
+                                                ? "opacity-100"
+                                                : "opacity-0",
+                                        )}
+                                    />
+                                    <Server className="mr-2 h-4 w-4 text-muted-foreground" />
+                                    <ModelSelectorName>
+                                        {modelId}
+                                    </ModelSelectorName>
+                                </ModelSelectorItem>
+                            ))}
+                        </ModelSelectorGroup>
+                    ) : (
+                        <ModelSelectorGroup heading="Server-side Config">
+                            <ModelSelectorItem
+                                value="__server_default__"
+                                onSelect={handleSelect}
                                 className={cn(
-                                    "mr-2 h-4 w-4",
-                                    !selectedModelId
-                                        ? "opacity-100"
-                                        : "opacity-0",
+                                    "cursor-pointer",
+                                    !selectedModelId && "bg-accent",
                                 )}
-                            />
-                            <Server className="mr-2 h-4 w-4 text-muted-foreground" />
-                            <ModelSelectorName>
-                                Build-in default model
-                            </ModelSelectorName>
-                        </ModelSelectorItem>
-                    </ModelSelectorGroup>
+                            >
+                                <Check
+                                    className={cn(
+                                        "mr-2 h-4 w-4",
+                                        !selectedModelId
+                                            ? "opacity-100"
+                                            : "opacity-0",
+                                    )}
+                                />
+                                <Server className="mr-2 h-4 w-4 text-muted-foreground" />
+                                <ModelSelectorName>
+                                    Build-in default model
+                                </ModelSelectorName>
+                            </ModelSelectorItem>
+                        </ModelSelectorGroup>
+                    )}
 
                     {/* Configured Models by Provider */}
                     {Array.from(groupedModels.entries()).map(

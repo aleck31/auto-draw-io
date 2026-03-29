@@ -357,7 +357,7 @@ function validateProviderCredentials(provider: ProviderName): void {
  *
  * Environment variables:
  * - AI_PROVIDER: The provider to use (bedrock, openai, anthropic, google, openrouter)
- * - AI_MODEL: The model ID/name for the selected provider
+ * - AI_MODELS: Comma-separated list of available models (first is default)
  *
  * Provider-specific env vars:
  * - OPENAI_API_KEY: OpenAI API key
@@ -381,8 +381,9 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
     // Check if client is providing their own provider override
     const isClientOverride = !!(overrides?.provider && overrides?.apiKey)
 
-    // Use client override if provided, otherwise fall back to env vars
-    const modelId = overrides?.modelId || process.env.AI_MODEL
+    // Use client override if provided, otherwise fall back to first model in AI_MODELS
+    const defaultModel = (process.env.AI_MODELS || "").split(",")[0]?.trim()
+    const modelId = overrides?.modelId || defaultModel
 
     if (!modelId) {
         if (isClientOverride) {
@@ -391,7 +392,7 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
             )
         }
         throw new Error(
-            `AI_MODEL environment variable is required. Example: AI_MODEL=claude-sonnet-4-5`,
+            `AI_MODELS environment variable is required. Example: AI_MODELS=claude-sonnet-4-5`,
         )
     }
 

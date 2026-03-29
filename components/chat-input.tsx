@@ -166,6 +166,7 @@ interface ChatInputProps {
     selectedModelId?: string
     onModelSelect?: (modelId: string | undefined) => void
     showUnvalidatedModels?: boolean
+    serverModels?: string[]
 }
 
 export function ChatInput({
@@ -188,6 +189,7 @@ export function ChatInput({
     selectedModelId,
     onModelSelect = () => {},
     showUnvalidatedModels = false,
+    serverModels = [],
 }: ChatInputProps) {
     const dict = useDictionary()
     const {
@@ -487,6 +489,7 @@ export function ChatInput({
                             onSelect={onModelSelect}
                             disabled={isDisabled}
                             showUnvalidatedModels={showUnvalidatedModels}
+                            serverModels={serverModels}
                         />
 
                         <div className="w-px h-5 bg-border mx-1" />

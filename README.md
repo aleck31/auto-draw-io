@@ -87,7 +87,7 @@ cd auto-draw-io
 docker build -t auto-draw-io .
 docker run -d -p 3000:3000 \
   -e AI_PROVIDER=openai \
-  -e AI_MODEL=gpt-4o \
+  -e AI_MODELS=gpt-4o \
   -e OPENAI_API_KEY=your_api_key \
   auto-draw-io
 ```
@@ -129,11 +129,13 @@ npm run dev
 
 **环境变量配置：**
 - `AI_PROVIDER`：选择AI提供商（bedrock, openai, anthropic, google, openrouter）
-- `AI_MODEL`：指定模型ID
+- `AI_MODELS`：指定可用模型列表（逗号分隔，第一个为默认模型）
 - 添加对应的API密钥（详见[AI提供商配置](./docs/ai-providers.md)）
-- `ACCESS_CODE_LIST`：访问密码（可选，推荐设置）
+- `ACCESS_CODE`：访问密码（可选，推荐设置）
 
-> **安全提醒：** 不设置 `ACCESS_CODE_LIST` 可能导致API密钥被滥用。
+> **安全提醒：** 不设置 `ACCESS_CODE` 可能导致模型API密钥被滥用。
+
+> **隐私说明：** 用户自配的 API Key 通过 request body 传输（非 URL/header），服务端仅在内存中临时使用，不会持久化存储或记录到日志。
 
 ## 部署
 

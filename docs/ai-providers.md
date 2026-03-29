@@ -6,7 +6,7 @@ This guide explains how to configure different AI model providers for auto-draw-
 
 1. Copy `.env.example` to `.env.local`
 2. Set your API key for your chosen provider
-3. Set `AI_MODEL` to your desired model
+3. Set `AI_MODELS` to your desired model(s), comma-separated
 4. Run `npm run dev`
 
 ## Supported Providers
@@ -19,7 +19,7 @@ This guide explains how to configure different AI model providers for auto-draw-
 AWS_REGION=us-west-2
 AWS_ACCESS_KEY_ID=your_access_key_id
 AWS_SECRET_ACCESS_KEY=your_secret_access_key
-AI_MODEL=anthropic.claude-sonnet-4-5-20250514-v1:0
+AI_MODELS=anthropic.claude-sonnet-4-5-20250514-v1:0
 ```
 
 **Option 2: API Key (Bearer Token)**
@@ -27,7 +27,7 @@ AI_MODEL=anthropic.claude-sonnet-4-5-20250514-v1:0
 ```bash
 AWS_REGION=us-east-1
 AWS_BEARER_TOKEN_BEDROCK=your_bedrock_api_key
-AI_MODEL=anthropic.claude-sonnet-4-5-20250514-v1:0
+AI_MODELS=anthropic.claude-sonnet-4-5-20250514-v1:0
 ```
 
 Note: On AWS (Lambda, EC2 with IAM role), credentials are automatically obtained from the IAM role. Bearer Token auth is simpler for quick prototyping — generate one from the [Bedrock console](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys-generate.html).
@@ -36,7 +36,7 @@ Note: On AWS (Lambda, EC2 with IAM role), credentials are automatically obtained
 
 ```bash
 OPENAI_API_KEY=your_api_key
-AI_MODEL=gpt-4o
+AI_MODELS=gpt-4o
 ```
 
 Optional custom endpoint (for OpenAI-compatible services):
@@ -49,7 +49,7 @@ OPENAI_BASE_URL=https://your-custom-endpoint/v1
 
 ```bash
 ANTHROPIC_API_KEY=your_api_key
-AI_MODEL=claude-sonnet-4-5-20250514
+AI_MODELS=claude-sonnet-4-5-20250514
 ```
 
 Optional custom endpoint:
@@ -62,7 +62,7 @@ ANTHROPIC_BASE_URL=https://your-custom-endpoint
 
 ```bash
 GOOGLE_GENERATIVE_AI_API_KEY=your_api_key
-AI_MODEL=gemini-2.0-flash
+AI_MODELS=gemini-2.0-flash
 ```
 
 Optional custom endpoint:
@@ -75,7 +75,7 @@ GOOGLE_BASE_URL=https://your-custom-endpoint
 
 ```bash
 OPENROUTER_API_KEY=your_api_key
-AI_MODEL=anthropic/claude-sonnet-4
+AI_MODELS=anthropic/claude-sonnet-4
 ```
 
 Optional custom endpoint:
