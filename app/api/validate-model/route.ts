@@ -15,15 +15,38 @@ export const runtime = "nodejs"
 function isPrivateUrl(urlString: string): boolean {
     try {
         const url = new URL(urlString)
-        const hostname = url.hostname.toLowerCase()
+        // Strip IPv6 brackets and a trailing dot so FQDN forms like
+        // "localhost." (which still resolve to 127.0.0.1) cannot bypass checks.
+        const hostname = url.hostname
+            .toLowerCase()
+            .replace(/^\[|\]$/g, "")
+            .replace(/\.$/, "")
 
         // Block localhost
         if (
             hostname === "localhost" ||
             hostname === "127.0.0.1" ||
-            hostname === "::1"
+            hostname === "::1" ||
+            hostname === "::"
         ) {
             return true
+        }
+
+        // Block IPv6 unique-local (fc00::/7), link-local (fe80::/10),
+        // and IPv4-mapped (::ffff:0:0/96) hosts.
+        if (hostname.includes(":")) {
+            if (
+                hostname.startsWith("fc") ||
+                hostname.startsWith("fd") ||
+                hostname.startsWith("::ffff:")
+            ) {
+                return true
+            }
+            const linkLocal = hostname.match(/^fe([0-9a-f]{2}):/)
+            if (linkLocal) {
+                const high = parseInt(linkLocal[1], 16)
+                if (high >= 0x80 && high <= 0xbf) return true
+            }
         }
 
         // Block AWS/cloud metadata endpoints

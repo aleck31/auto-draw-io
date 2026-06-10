@@ -16,6 +16,7 @@
 # next.js
 /.next/
 /out/
+/.husky
 
 # production
 /build
@@ -23,7 +24,8 @@
 # misc
 .DS_Store
 *.pem
-.github 
+.dev
+.github
 
 # debug
 npm-debug.log*
