@@ -10,7 +10,11 @@ import {
 } from "ai"
 import { jsonrepair } from "jsonrepair"
 import { z } from "zod"
-import { getAIModel, supportsPromptCaching } from "@/lib/ai-providers"
+import {
+    getAIModel,
+    supportsPromptCaching,
+    supportsTemperature,
+} from "@/lib/ai-providers"
 import { findCachedResponse } from "@/lib/cached-responses"
 import {
     getTelemetryConfig,
@@ -662,9 +666,10 @@ Example: If previous output ended with '<mxCell id="x" style="rounded=1', contin
                 : {}),
             get_shape_library: getShapeLibraryTool,
         },
-        ...(process.env.TEMPERATURE !== undefined && {
-            temperature: parseFloat(process.env.TEMPERATURE),
-        }),
+        ...(process.env.TEMPERATURE !== undefined &&
+            supportsTemperature(modelId) && {
+                temperature: parseFloat(process.env.TEMPERATURE),
+            }),
     })
 
     return result.toUIMessageStreamResponse({

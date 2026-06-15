@@ -602,3 +602,28 @@ export function supportsPromptCaching(modelId: string): boolean {
         modelId.startsWith("eu.anthropic")
     )
 }
+
+/**
+ * Check if a model accepts the `temperature` parameter.
+ * Newer frontier/reasoning models have deprecated temperature and will error if it is supplied:
+ * - Anthropic Claude Opus 4.7/4.8 and later
+ * - OpenAI GPT-5.x and o1/o3/o4 reasoning models
+ * Returns true (supported) for everything else.
+ */
+export function supportsTemperature(modelId: string): boolean {
+    const id = modelId.toLowerCase()
+
+    // OpenAI GPT-5.x and o-series reasoning models
+    if (id.includes("gpt-5")) return false
+    if (/(^|[/_-])o[1345]([/_.-]|$)/.test(id)) return false
+
+    // Claude Opus 4.7 and later (e.g. 4.7, 4.8) deprecated temperature.
+    const opusVersion = id.match(/opus-(\d+)[._-](\d+)/)
+    if (opusVersion) {
+        const major = parseInt(opusVersion[1], 10)
+        const minor = parseInt(opusVersion[2], 10)
+        if (major > 4 || (major === 4 && minor >= 7)) return false
+    }
+
+    return true
+}
