@@ -12,6 +12,25 @@ export type ProviderName =
     | "google"
     | "openrouter"
 
+/**
+ * Built-in default server models, used when the AI_MODELS env var is not set.
+ * Comma-separated; the first entry is the default selection. Setting AI_MODELS
+ * at runtime overrides this list.
+ */
+export const DEFAULT_MODELS =
+    "global.anthropic.claude-sonnet-5,global.anthropic.claude-sonnet-4-6,global.anthropic.claude-opus-4-8"
+
+/**
+ * Resolve the configured server models (AI_MODELS env, falling back to
+ * DEFAULT_MODELS) as a trimmed, non-empty list.
+ */
+export function getServerModels(): string[] {
+    return (process.env.AI_MODELS || DEFAULT_MODELS)
+        .split(",")
+        .map((m) => m.trim())
+        .filter(Boolean)
+}
+
 interface ModelConfig {
     model: any
     providerOptions?: any
@@ -381,8 +400,9 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
     // Check if client is providing their own provider override
     const isClientOverride = !!(overrides?.provider && overrides?.apiKey)
 
-    // Use client override if provided, otherwise fall back to first model in AI_MODELS
-    const defaultModel = (process.env.AI_MODELS || "").split(",")[0]?.trim()
+    // Use client override if provided, otherwise fall back to first configured
+    // server model (AI_MODELS env, or the built-in DEFAULT_MODELS).
+    const defaultModel = getServerModels()[0]
     const modelId = overrides?.modelId || defaultModel
 
     if (!modelId) {
@@ -605,23 +625,30 @@ export function supportsPromptCaching(modelId: string): boolean {
 
 /**
  * Check if a model accepts the `temperature` parameter.
- * Newer frontier/reasoning models have deprecated temperature and will error if it is supplied:
- * - Anthropic Claude Opus 4.7/4.8 and later
- * - OpenAI GPT-5.x and o1/o3/o4 reasoning models
+ * Newer frontier/reasoning models have deprecated temperature and will error
+ * if it is supplied:
+ * - Anthropic Claude 4.7 and later — any family (Opus/Sonnet/Haiku) and the
+ *   5.x generation. Claude 4.6 and earlier still accept temperature.
+ * - OpenAI GPT-5.x and o1/o3/o4 reasoning models.
  * Returns true (supported) for everything else.
  */
 export function supportsTemperature(modelId: string): boolean {
     const id = modelId.toLowerCase()
 
-    // OpenAI GPT-5.x and o-series reasoning models
+    // OpenAI GPT-5.x and o-series reasoning models.
     if (id.includes("gpt-5")) return false
     if (/(^|[/_-])o[1345]([/_.-]|$)/.test(id)) return false
 
-    // Claude Opus 4.7 and later (e.g. 4.7, 4.8) deprecated temperature.
-    const opusVersion = id.match(/opus-(\d+)[._-](\d+)/)
-    if (opusVersion) {
-        const major = parseInt(opusVersion[1], 10)
-        const minor = parseInt(opusVersion[2], 10)
+    // Anthropic Claude: parse "claude-<family>-<major>[.<minor>]" and block
+    // version >= 4.7 (covers 4.7/4.8, the 5.x generation, and future ones).
+    // Minor is limited to 1-2 digits (with no trailing digit) so a date suffix
+    // like "claude-sonnet-4-20250514" is read as 4.0, not 4.20250514.
+    // A missing minor (e.g. "sonnet-5") is treated as 0. Older "claude-3-5-..."
+    // naming won't match and stays allowed.
+    const claude = id.match(/claude-[a-z]+-(\d+)(?:[._-](\d{1,2})(?!\d))?/)
+    if (claude) {
+        const major = parseInt(claude[1], 10)
+        const minor = claude[2] ? parseInt(claude[2], 10) : 0
         if (major > 4 || (major === 4 && minor >= 7)) return false
     }
 

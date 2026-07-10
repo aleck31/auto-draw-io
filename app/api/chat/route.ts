@@ -12,6 +12,7 @@ import { jsonrepair } from "jsonrepair"
 import { z } from "zod"
 import {
     getAIModel,
+    getServerModels,
     supportsPromptCaching,
     supportsTemperature,
 } from "@/lib/ai-providers"
@@ -241,10 +242,7 @@ async function handleChatRequest(req: Request): Promise<Response> {
 
     // If user selected a specific server model, validate and override
     if (serverModelId && !aiConfig?.provider) {
-        const allowedModels = (process.env.AI_MODELS || "")
-            .split(",")
-            .map((m: string) => m.trim())
-            .filter(Boolean)
+        const allowedModels = getServerModels()
         if (
             allowedModels.length > 0 &&
             !allowedModels.includes(serverModelId)
@@ -336,6 +334,7 @@ ${userInputText}
 
     // Filter out tool-calls with invalid inputs (from failed repair or interrupted streaming)
     // Bedrock API rejects messages where toolUse.input is not a valid JSON object
+    const removedToolCallIds = new Set<string>()
     enhancedMessages = enhancedMessages
         .map((msg: any) => {
             if (msg.role !== "assistant" || !Array.isArray(msg.content)) {
@@ -352,6 +351,54 @@ ${userInputText}
                         console.warn(
                             `[route.ts] Filtering out tool-call with invalid input:`,
                             { toolName: part.toolName, input: part.input },
+                        )
+                        // Remember this call id so its orphaned tool-result is
+                        // also dropped below, keeping toolUse/toolResult paired.
+                        if (part.toolCallId) {
+                            removedToolCallIds.add(part.toolCallId)
+                        }
+                        return false
+                    }
+                }
+                return true
+            })
+            return { ...msg, content: filteredContent }
+        })
+        .filter((msg: any) => msg.content && msg.content.length > 0)
+
+    // Collect all surviving tool-call ids so we can drop any tool-result that
+    // has no matching toolUse. An unpaired toolResult makes Bedrock reject the
+    // request with "The number of toolResult blocks ... exceeds the number of
+    // toolUse blocks of previous turn." This happens when a tool call is
+    // truncated/interrupted mid-stream but its result was already recorded.
+    const validToolCallIds = new Set<string>()
+    for (const msg of enhancedMessages) {
+        if (Array.isArray(msg.content)) {
+            for (const part of msg.content) {
+                if (part.type === "tool-call" && part.toolCallId) {
+                    validToolCallIds.add(part.toolCallId)
+                }
+            }
+        }
+    }
+
+    enhancedMessages = enhancedMessages
+        .map((msg: any) => {
+            if (!Array.isArray(msg.content)) {
+                return msg
+            }
+            const filteredContent = msg.content.filter((part: any) => {
+                if (part.type === "tool-result") {
+                    if (
+                        removedToolCallIds.has(part.toolCallId) ||
+                        !validToolCallIds.has(part.toolCallId)
+                    ) {
+                        console.warn(
+                            `[route.ts] Dropping orphaned tool-result (no matching toolUse):`,
+                            {
+                                toolName: part.toolName,
+                                toolCallId: part.toolCallId,
+                            },
                         )
                         return false
                     }
@@ -467,9 +514,12 @@ ${userInputText}
     const result = streamText({
         model,
         abortSignal: req.signal,
-        ...(process.env.MAX_OUTPUT_TOKENS && {
-            maxOutputTokens: parseInt(process.env.MAX_OUTPUT_TOKENS, 10),
-        }),
+        // Default to 32000 when unset. Without an explicit value Bedrock falls
+        // back to ~4096, which truncates large diagrams. Claude 4.x supports up
+        // to 64000 output tokens.
+        maxOutputTokens: process.env.MAX_OUTPUT_TOKENS
+            ? parseInt(process.env.MAX_OUTPUT_TOKENS, 10)
+            : 32000,
         stopWhen: stepCountIs(5),
         // Repair truncated tool calls when maxOutputTokens is reached mid-JSON
         experimental_repairToolCall: async ({ toolCall, error }) => {
