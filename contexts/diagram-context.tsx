@@ -6,7 +6,11 @@ import type { DrawIoEmbedRef } from "react-drawio"
 import { STORAGE_DIAGRAM_XML_KEY } from "@/components/chat-panel"
 import type { ExportFormat } from "@/components/save-dialog"
 import { getApiEndpoint } from "@/lib/base-path"
-import { extractDiagramXML, validateAndFixXml } from "../lib/utils"
+import {
+    extractDiagramXML,
+    isRealDiagram,
+    validateAndFixXml,
+} from "../lib/utils"
 
 interface DiagramContextType {
     chartXML: string
@@ -18,6 +22,7 @@ interface DiagramContextType {
     resolverRef: React.Ref<((value: string) => void) | null>
     drawioRef: React.Ref<DrawIoEmbedRef | null>
     handleDiagramExport: (data: any) => void
+    handleDiagramAutoSave: (data: { xml?: string }) => void
     clearDiagram: () => void
     saveDiagramToFile: (
         filename: string,
@@ -110,7 +115,7 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
 
     // Track if we're expecting an export for file save (stores raw export data)
     const saveResolverRef = useRef<{
-        resolver: ((data: string) => void) | null
+        resolver: ((data: string, fullDiagramXML?: string) => void) | null
         format: ExportFormat | null
     }>({ resolver: null, format: null })
 
@@ -199,7 +204,9 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         // Handle save to file if requested (process raw data before extraction)
         if (saveResolverRef.current.resolver) {
             const format = saveResolverRef.current.format
-            saveResolverRef.current.resolver(data.data)
+            // Pass data.xml (full uncompressed multi-page document) so .drawio
+            // saves preserve every page, not just the first.
+            saveResolverRef.current.resolver(data.data, data.xml)
             saveResolverRef.current = { resolver: null, format: null }
             // For non-xmlsvg formats, skip XML extraction as it will fail
             // Only drawio (which uses xmlsvg internally) has the content attribute
@@ -209,7 +216,10 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         }
 
         const extractedXML = extractDiagramXML(data.data)
-        setChartXML(extractedXML)
+        // NOTE: do NOT write chartXML here. extractDiagramXML only decodes the
+        // FIRST <diagram> page, so writing it would drop other pages. chartXML
+        // is kept current by loadDiagram (AI updates) and onAutoSave (which
+        // delivers the full multi-page document).
         setLatestSvg(data.data)
 
         // Only add to history if this was a user-initiated export
@@ -234,6 +244,17 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
             resolverRef.current(extractedXML)
             resolverRef.current = null
         }
+    }
+
+    // Draw.io autosave fires on every canvas change with the full, uncompressed
+    // multi-page document. Use it as the source of truth for chartXML so manual
+    // edits and multi-page diagrams are preserved (localStorage, display).
+    const handleDiagramAutoSave = (data: { xml?: string }) => {
+        if (!data?.xml) return
+        // Don't clobber a pending restore: if we already hold a real diagram in
+        // state but DrawIO isn't ready yet, we're waiting to restore it.
+        if (!isDrawioReady && isRealDiagram(chartXML)) return
+        setChartXML(data.xml)
     }
 
     const clearDiagram = () => {
@@ -281,14 +302,17 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
 
         // Set up the resolver before triggering export
         saveResolverRef.current = {
-            resolver: (exportData: string) => {
+            resolver: (exportData: string, fullDiagramXML?: string) => {
                 let fileContent: string | Blob
                 let mimeType: string
                 let extension: string
 
                 if (format === "drawio") {
-                    // Extract XML from SVG for .drawio format
-                    const xml = extractDiagramXML(exportData)
+                    // Prefer the complete document from the export event so all
+                    // pages are saved; fall back to first-page extraction.
+                    const xml = fullDiagramXML?.trim()
+                        ? fullDiagramXML
+                        : extractDiagramXML(exportData)
                     let xmlContent = xml
                     if (!xml.includes("<mxfile")) {
                         xmlContent = `<mxfile><diagram name="Page-1" id="page-1">${xml}</diagram></mxfile>`
@@ -375,6 +399,7 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
                 resolverRef,
                 drawioRef,
                 handleDiagramExport,
+                handleDiagramAutoSave,
                 clearDiagram,
                 saveDiagramToFile,
                 saveDiagramToStorage,

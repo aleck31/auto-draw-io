@@ -18,6 +18,7 @@ export default function Home() {
     const {
         drawioRef,
         handleDiagramExport,
+        handleDiagramAutoSave,
         onDrawioLoad,
         resetDrawioReady,
         saveDiagramToStorage,
@@ -213,7 +214,9 @@ export default function Home() {
                                     <DrawIoEmbed
                                         key={`${drawioUi}-${darkMode}`}
                                         ref={drawioRef}
+                                        autosave
                                         onExport={handleDiagramExport}
+                                        onAutoSave={handleDiagramAutoSave}
                                         onLoad={handleDrawioLoad}
                                         onSave={handleDrawioSave}
                                         baseUrl={drawioBaseUrl}
