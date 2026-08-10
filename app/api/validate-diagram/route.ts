@@ -54,8 +54,8 @@ export async function POST(req: Request) {
         const { object } = await generateObject({
             model,
             schema: ValidationSchema,
+            instructions: SYSTEM_PROMPT,
             messages: [
-                { role: "system", content: SYSTEM_PROMPT },
                 {
                     role: "user",
                     content: [

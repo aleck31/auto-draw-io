@@ -277,38 +277,61 @@ function buildProviderOptions(
             )
             const reasoningEffort = process.env.BEDROCK_REASONING_EFFORT
 
-            // Bedrock reasoning ONLY for Claude and Nova models
-            // Other models (MiniMax, etc.) don't support reasoningConfig
-            if (
-                modelId &&
-                (budgetTokens || reasoningEffort) &&
-                (modelId.includes("claude") ||
-                    modelId.includes("anthropic") ||
-                    modelId.includes("nova") ||
-                    modelId.includes("amazon"))
-            ) {
-                const reasoningConfig: Record<string, any> = { type: "enabled" }
+            // Bedrock reasoning config.
+            // - Claude 4.7+/5.x: adaptive thinking with a summarized (readable)
+            //   trace, ENABLED BY DEFAULT. "adaptive" lets the model scale
+            //   thinking to task difficulty, so simple edits stay cheap.
+            //   BEDROCK_REASONING_EFFORT (low|medium|high|xhigh|max) caps it.
+            // - Claude <= 4.6: legacy thinking.type:"enabled", opt-in via
+            //   BEDROCK_REASONING_BUDGET_TOKENS.
+            // - Nova: type "enabled" + maxReasoningEffort, opt-in.
+            const claudeVer = modelId ? parseClaudeVersion(modelId) : null
+            const isClaude =
+                !!modelId &&
+                (modelId.includes("claude") || modelId.includes("anthropic"))
+            const isNova =
+                !!modelId &&
+                (modelId.includes("nova") || modelId.includes("amazon"))
+            const isNewClaude =
+                isClaude &&
+                !!claudeVer &&
+                (claudeVer.major > 4 ||
+                    (claudeVer.major === 4 && claudeVer.minor >= 7))
 
-                // Claude models: use budgetTokens (1024-64000)
-                if (
-                    budgetTokens &&
-                    (modelId.includes("claude") ||
-                        modelId.includes("anthropic"))
-                ) {
-                    reasoningConfig.budgetTokens = budgetTokens
+            if (isNewClaude) {
+                // Default-on adaptive summarized thinking.
+                const reasoningConfig: Record<string, any> = {
+                    type: "adaptive",
+                    display: "summarized",
                 }
-                // Nova models: use maxReasoningEffort (low/medium/high)
-                else if (
-                    reasoningEffort &&
-                    (modelId.includes("nova") || modelId.includes("amazon"))
-                ) {
+                if (reasoningEffort) {
                     reasoningConfig.maxReasoningEffort = reasoningEffort as
                         | "low"
                         | "medium"
                         | "high"
+                        | "xhigh"
+                        | "max"
                 }
-
                 options.bedrock = { reasoningConfig }
+            } else if (
+                isClaude &&
+                budgetTokens &&
+                supportsLegacyThinkingConfig(modelId)
+            ) {
+                // Claude <= 4.6, opt-in legacy thinking.
+                options.bedrock = {
+                    reasoningConfig: { type: "enabled", budgetTokens },
+                }
+            } else if (isNova && reasoningEffort) {
+                options.bedrock = {
+                    reasoningConfig: {
+                        type: "enabled",
+                        maxReasoningEffort: reasoningEffort as
+                            | "low"
+                            | "medium"
+                            | "high",
+                    },
+                }
             }
             break
         }
@@ -624,6 +647,23 @@ export function supportsPromptCaching(modelId: string): boolean {
 }
 
 /**
+ * Parse the Claude version from a model id (any inference-profile prefix and
+ * family). Returns { major, minor } or null for non-Claude / old "claude-3-5"
+ * naming. Minor is limited to 1-2 digits so a date suffix like
+ * "claude-sonnet-4-20250514" is read as 4.0, not 4.20250514. A missing minor
+ * (e.g. "sonnet-5") is treated as 0.
+ */
+export function parseClaudeVersion(
+    modelId: string,
+): { major: number; minor: number } | null {
+    const m = modelId
+        .toLowerCase()
+        .match(/claude-[a-z]+-(\d+)(?:[._-](\d{1,2})(?!\d))?/)
+    if (!m) return null
+    return { major: parseInt(m[1], 10), minor: m[2] ? parseInt(m[2], 10) : 0 }
+}
+
+/**
  * Check if a model accepts the `temperature` parameter.
  * Newer frontier/reasoning models have deprecated temperature and will error
  * if it is supplied:
@@ -639,18 +679,28 @@ export function supportsTemperature(modelId: string): boolean {
     if (id.includes("gpt-5")) return false
     if (/(^|[/_-])o[1345]([/_.-]|$)/.test(id)) return false
 
-    // Anthropic Claude: parse "claude-<family>-<major>[.<minor>]" and block
-    // version >= 4.7 (covers 4.7/4.8, the 5.x generation, and future ones).
-    // Minor is limited to 1-2 digits (with no trailing digit) so a date suffix
-    // like "claude-sonnet-4-20250514" is read as 4.0, not 4.20250514.
-    // A missing minor (e.g. "sonnet-5") is treated as 0. Older "claude-3-5-..."
-    // naming won't match and stays allowed.
-    const claude = id.match(/claude-[a-z]+-(\d+)(?:[._-](\d{1,2})(?!\d))?/)
-    if (claude) {
-        const major = parseInt(claude[1], 10)
-        const minor = claude[2] ? parseInt(claude[2], 10) : 0
-        if (major > 4 || (major === 4 && minor >= 7)) return false
+    // Anthropic Claude 4.7+ (any family, incl. 5.x) deprecated temperature.
+    const claude = parseClaudeVersion(id)
+    if (
+        claude &&
+        (claude.major > 4 || (claude.major === 4 && claude.minor >= 7))
+    ) {
+        return false
     }
 
     return true
+}
+
+/**
+ * Claude 4.7+ (and the 5.x generation) replaced the legacy
+ * `thinking.type: "enabled"` + `budgetTokens` reasoning API with
+ * `thinking.type: "adaptive"` + `output_config.effort`. The AI SDK's
+ * `reasoningConfig` still emits the legacy shape, which these models reject
+ * with a ValidationException. Returns true only for Claude models that still
+ * accept the legacy config (<= 4.6).
+ */
+export function supportsLegacyThinkingConfig(modelId: string): boolean {
+    const claude = parseClaudeVersion(modelId)
+    if (!claude) return false // not a Claude model
+    return claude.major < 4 || (claude.major === 4 && claude.minor <= 6)
 }

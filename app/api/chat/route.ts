@@ -589,6 +589,10 @@ ${userInputText}
             return null
         },
         messages: allMessages,
+        // v7 rejects role:"system" in messages by default. Our system messages
+        // are server-generated (trusted) and carry Bedrock cachePoint provider
+        // options, so keep them in messages instead of the instructions option.
+        allowSystemInMessages: true,
         ...(providerOptions && { providerOptions }), // This now includes all reasoning configs
         ...(headers && { headers }),
         // Langfuse telemetry config (returns undefined if not configured)
