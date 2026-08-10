@@ -11,6 +11,44 @@
 </mxCell>
 ```
 
+## Architecture diagram design guide
+
+An architecture diagram is a high-level LOGICAL map, not a sequence diagram. Its
+job is to let a reader grasp in one glance **what the pieces are, how they are
+grouped, and how they relate** - not to trace runtime message order.
+
+**Grouping carries most of the meaning.** Nest containers in the real cloud
+structure (cloud -> region -> virtual network -> subnets, plus subscription /
+project / account boundaries and on-prem data centers). A reader learns more from
+"these five services form the ingestion tier" than from ten arrows between them.
+Prefer flow BETWEEN tiers/groups over flow between individual nodes.
+
+**Naming:**
+- Label each service node with the official service name; put custom context in a
+  second line / smaller caption.
+- Label a structural container by what its boundary IS, matching its kind
+  (a virtual network box -> "VNet"/"VPC", a private subnet box -> "Private
+  Subnet") - not a free-form tier name.
+- Free-form tier names ("Application Tier", "Edge & Auth") belong on a plain
+  generic container, not on a network/region boundary.
+- A colored service group represents ONE service and holds only that service's
+  own parts; a box mixing different services must be a neutral generic container.
+
+**Connectors:**
+- Draw the fewest connectors that convey the logical shape; merge a read+write
+  into one link and skip reverse arrows for responses.
+- One connector to a group container, not one per member.
+- Keep one dominant flow direction; never route a connector through an unrelated
+  shape's bounding box.
+
+**Complex multi-step flows:** use small numbered step markers on the nodes plus a
+legend listing the steps, instead of a web of long labeled arrows.
+
+**Before emitting XML**, self-check: understandable in ten seconds? one obvious
+flow direction? connectors <= nodes? no connector carrying a sentence or doubling
+back across the canvas?
+
+
 ## Shapes (648)
 
 Shapes are organized by category: `azure2/{category}/{shape}.svg`

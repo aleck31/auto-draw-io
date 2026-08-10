@@ -5,13 +5,71 @@
 
 ## Usage
 
+Two shape kinds — pick by what you are drawing.
+
+**1. Service tile** (`resourceIcon`): white glyph on a category-colored tile.
+`fillColor` = the service's AWS category color.
+
 ```xml
 <mxCell value="label" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.{shape};fillColor=#ED7100;strokeColor=#ffffff;verticalLabelPosition=bottom;verticalAlign=top;align=center;" vertex="1" parent="1">
   <mxGeometry x="0" y="0" width="60" height="60" as="geometry" />
 </mxCell>
 ```
 
-For simple shapes use: `shape=mxgraph.aws4.{shape};fillColor=#232F3D;`
+Category colors: Compute / Containers / Media `#ED7100`, Storage / IoT `#7AA116`,
+Databases / Developer-Tools `#C925D1`, Networking-Content-Delivery / Analytics
+`#8C4FFF`, Security-Identity / Front-End-Web-Mobile `#DD344C`,
+Application-Integration / Management-Governance `#E7157B`,
+Artificial-Intelligence / Migration `#01A88D`.
+
+**2. Plain shape** (resources, actors, generic elements — e.g. `users`,
+`internet`): single-color line art, no tile. Use AWS Squid Ink:
+
+```
+shape=mxgraph.aws4.{shape};fillColor=#232F3E;
+```
+
+Always set `fillColor` — these shapes default to plain black, which looks
+off-brand. Never wrap a plain shape in `resourceIcon` (and vice versa).
+
+## Architecture diagram design guide
+
+An architecture diagram is a high-level LOGICAL map, not a sequence diagram. Its
+job is to let a reader grasp in one glance **what the pieces are, how they are
+grouped, and how they relate** - not to trace runtime message order.
+
+**Grouping carries most of the meaning.** Nest containers in the real AWS
+structure: AWS Cloud -> Region -> VPC -> subnets (plus account boundaries,
+on-prem data centers, Auto Scaling groups). A reader learns more from "these
+five services form the ingestion tier" than from ten arrows between them.
+Prefer flow BETWEEN tiers/groups over flow between individual nodes.
+
+**Naming:**
+- Label each service node with the official AWS service name (`AWS Lambda`, not
+  `Settlement Lambda`). Put custom context in a second line / smaller caption.
+- Label a structural container by what its boundary IS, matching its kind
+  (a VPC box -> "VPC", a private subnet box -> "Private Subnet", optionally with
+  a short suffix) - not a free-form tier name.
+- Free-form tier names ("Application Tier", "Edge & Auth") belong on a plain
+  generic container, not on a VPC/subnet/Region boundary.
+- A colored service group represents ONE service and holds only that service's
+  own parts; a box mixing different services must be a neutral generic
+  container - never wrap a mixed tier in one member's brand color.
+
+**Connectors:**
+- Draw the fewest connectors that convey the logical shape; merge a read+write
+  into one link and skip reverse arrows for responses.
+- One connector to a group container, not one per member.
+- Keep one dominant flow direction; never route a connector through an unrelated
+  shape's bounding box.
+
+**Complex multi-step flows:** use small numbered step markers on the nodes plus
+a legend listing the steps, instead of a web of long labeled arrows. The legend
+is where detail belongs; the canvas stays clean.
+
+**Before emitting XML**, self-check: understandable in ten seconds? one obvious
+flow direction? connectors <= nodes? no connector carrying a sentence or
+doubling back across the canvas?
 
 ## Shapes (1032)
 
