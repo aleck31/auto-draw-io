@@ -113,10 +113,10 @@ export function ModelSelector({
                     variant="ghost"
                     size="sm"
                     disabled={disabled}
-                    className="hover:bg-accent gap-1.5 h-8 max-w-[180px] px-2"
+                    className="h-8 min-w-0 max-w-[180px] shrink overflow-hidden gap-1.5 px-2 hover:bg-accent"
                 >
                     <Bot className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                    <span className="text-xs truncate">
+                    <span className="min-w-0 truncate text-xs">
                         {selectedModel
                             ? selectedModel.modelId
                             : selectedServerModel || "Server default"}

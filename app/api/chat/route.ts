@@ -25,9 +25,9 @@ import {
 } from "@/lib/langfuse"
 import { getSystemPrompt } from "@/lib/system-prompts"
 import {
-    createWebExtractTool,
     createWebSearchTool,
     getShapeLibraryTool,
+    webExtractTool,
 } from "@/lib/tools"
 import { getUserIdFromRequest } from "@/lib/user-id"
 
@@ -708,12 +708,12 @@ Example: If previous output ended with '<mxCell id="x" style="rounded=1', contin
                         ),
                 }),
             },
+            // Local content extraction (no API key needed)
+            web_extract: webExtractTool,
+            // Web search still requires Tavily (local extraction can't search)
             ...(process.env.TAVILY_API_KEY || tavilyApiKey
                 ? {
                       web_search: createWebSearchTool(
-                          tavilyApiKey || process.env.TAVILY_API_KEY || "",
-                      ),
-                      web_extract: createWebExtractTool(
                           tavilyApiKey || process.env.TAVILY_API_KEY || "",
                       ),
                   }

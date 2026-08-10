@@ -1,6 +1,6 @@
 {
     "name": "auto-draw-io",
-    "version": "0.8.4",
+    "version": "0.8.5",
     "license": "Apache-2.0",
     "private": true,
     "scripts": {
@@ -20,6 +20,7 @@
         "@ai-sdk/react": "^4.0.61",
         "@aws-sdk/client-dynamodb": "^3.957.0",
         "@aws-sdk/credential-providers": "^3.957.0",
+        "@extractus/article-extractor": "^9.0.0",
         "@langfuse/client": "^4.4.9",
         "@langfuse/otel": "^4.4.9",
         "@langfuse/tracing": "^4.4.9",
@@ -62,6 +63,7 @@
         "sonner": "^2.0.7",
         "tailwind-merge": "^3.0.2",
         "tailwindcss-animate": "^1.0.7",
+        "turndown": "^7.2.4",
         "unpdf": "^1.4.0",
         "zod": "^4.1.12"
     },
@@ -81,6 +83,7 @@
         "@types/pako": "^2.0.3",
         "@types/react": "^19",
         "@types/react-dom": "^19",
+        "@types/turndown": "^5.0.6",
         "eslint": "9.39.1",
         "eslint-config-next": "16.0.5",
         "husky": "^9.1.7",
