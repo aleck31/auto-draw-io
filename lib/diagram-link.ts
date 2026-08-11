@@ -58,7 +58,37 @@ export function decodeDiagramFragment(fragment: string): string | null {
  * when unset so callers can simply omit the link.
  */
 export function buildDiagramViewUrl(xml: string): string | undefined {
-    const base = process.env.APP_BASE_URL?.trim().replace(/\/$/, "")
+    const base = appBaseUrl()
     if (!base) return undefined
     return `${base}/${encodeDiagramFragment(xml)}`
+}
+
+function appBaseUrl(): string | undefined {
+    return process.env.APP_BASE_URL?.trim().replace(/\/$/, "") || undefined
+}
+
+/**
+ * Short link for a stored diagram: `<base>/?d=<id>`.
+ *
+ * Preferred over the fragment form because it keeps agent responses tiny. The
+ * trade-off is that it depends on the in-memory store, so it stops working after
+ * the TTL expires or the server restarts - use buildDiagramViewUrl() when a
+ * durable link matters more than length.
+ */
+export function buildShortViewUrl(id: string): string | undefined {
+    const base = appBaseUrl()
+    if (!base) return undefined
+    return `${base}/?d=${id}`
+}
+
+/**
+ * Render-only page for a stored diagram: `<base>/render/<id>`.
+ *
+ * Contains just the diagram with no app UI, so a headless browser can open it
+ * and screenshot the SVG to obtain a PNG.
+ */
+export function buildRenderUrl(id: string): string | undefined {
+    const base = appBaseUrl()
+    if (!base) return undefined
+    return `${base}/render/${id}`
 }

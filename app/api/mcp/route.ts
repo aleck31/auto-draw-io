@@ -6,6 +6,7 @@ import {
     DiagramGenerationError,
     generateDiagram,
 } from "@/lib/agent-diagram"
+import { getDiagram } from "@/lib/diagram-store"
 
 export const runtime = "nodejs"
 export const maxDuration = 600
@@ -77,27 +78,29 @@ function buildServer(): McpServer {
     const server = new McpServer({ name: "auto-drawio", version: "1.0.0" })
 
     const toResult = (result: {
-        mxfile: string
+        id: string
+        cellCount: number
         notes?: string[]
         viewUrl?: string
+        renderUrl?: string
     }) => {
         const notes = result.notes?.length
-            ? ` Auto-fixes applied: ${result.notes.join("; ")}.`
+            ? ` Auto-fixes: ${result.notes.join("; ")}.`
             : ""
         const view = result.viewUrl
-            ? `\n\nOpen the rendered diagram: ${result.viewUrl}`
+            ? `\nOpen/edit in the browser: ${result.viewUrl}`
             : ""
-        // Two blocks: a short summary (with the preview link) first, so it is
-        // not buried under the diagram, then the XML on its own.
+        const render = result.renderUrl
+            ? `\nTo get a PNG: open ${result.renderUrl} in a headless browser and screenshot the svg element (that page has no app UI, only the diagram).`
+            : ""
+        // Compact on purpose: returning the full XML here would add several KB
+        // to the agent's context on every call. Agents fetch it with
+        // get_diagram_xml only when they actually need the markup.
         return {
             content: [
                 {
                     type: "text" as const,
-                    text: `Diagram generated (${result.mxfile.split("<mxCell").length - 1} cells).${notes}${view}`,
-                },
-                {
-                    type: "text" as const,
-                    text: `Save this as a .drawio file to open it in draw.io:\n\n\`\`\`xml\n${result.mxfile}\n\`\`\``,
+                    text: `Diagram created (${result.cellCount} cells).${notes}${view}${render}\nDiagram id: ${result.id} - pass it to edit_diagram to modify it, or get_diagram_xml to read the XML.`,
                 },
             ],
         }
@@ -121,7 +124,7 @@ function buildServer(): McpServer {
         "generate_diagram",
         {
             title: "Generate a draw.io diagram",
-            description: `Generate a draw.io diagram (architecture diagram, flowchart, cloud design) from a natural-language description. Supports AWS/Azure/GCP/Kubernetes icon libraries. Returns a complete .drawio (mxfile) document. ${DIAGRAM_HINT}`,
+            description: `Generate a draw.io diagram (architecture diagram, flowchart, cloud design) from a natural-language description. Supports AWS/Azure/GCP/Kubernetes icon libraries. Returns a diagram id plus links: one to open/edit it in the browser, and a render-only page you can screenshot with a headless browser to get a PNG. Use get_diagram_xml if you need the XML itself. ${DIAGRAM_HINT}`,
             inputSchema: {
                 description: z
                     .string()
@@ -147,25 +150,50 @@ function buildServer(): McpServer {
         {
             title: "Edit an existing draw.io diagram",
             description:
-                "Modify an existing draw.io diagram. Provide the current diagram XML (mxfile or bare mxCells) plus the change to make. Returns the updated .drawio document.",
+                "Modify an existing diagram. Identify it with diagram_id (from a previous generate/edit call) - or pass current_xml when the diagram came from elsewhere. Returns a new diagram id and link.",
             inputSchema: {
-                current_xml: z
-                    .string()
-                    .describe("The existing diagram XML to modify"),
                 change: z
                     .string()
                     .describe(
                         "The change to make, e.g. 'add an ElastiCache cluster between the app tier and RDS'",
                     ),
+                diagram_id: z
+                    .string()
+                    .optional()
+                    .describe("Id of a diagram from a previous call"),
+                current_xml: z
+                    .string()
+                    .optional()
+                    .describe(
+                        "The diagram XML to modify; only needed when diagram_id is unavailable",
+                    ),
             },
         },
-        async ({ current_xml, change }, extra) => {
+        async ({ change, diagram_id, current_xml }, extra) => {
+            let baseXml = current_xml
+            if (!baseXml && diagram_id) {
+                const stored = getDiagram(diagram_id)
+                if (!stored) {
+                    return toError(
+                        new Error(
+                            `Diagram ${diagram_id} not found - links expire after 30 days and are cleared on restart. Pass current_xml instead, or generate a new diagram.`,
+                        ),
+                    )
+                }
+                baseXml = stored
+            }
+            if (!baseXml) {
+                return toError(
+                    new Error("Provide either diagram_id or current_xml."),
+                )
+            }
+
             try {
                 return toResult(
                     await withProgress(extra, (onProgress) =>
                         generateDiagram({
                             prompt: change,
-                            currentXml: current_xml,
+                            currentXml: baseXml,
                             onProgress,
                         }),
                     ),
@@ -173,6 +201,40 @@ function buildServer(): McpServer {
             } catch (error) {
                 console.error("[mcp] edit_diagram:", error)
                 return toError(error)
+            }
+        },
+    )
+
+    server.registerTool(
+        "get_diagram_xml",
+        {
+            title: "Read a diagram's XML",
+            description:
+                "Return the full draw.io XML for a diagram id. Use this only when you need the markup itself (to inspect structure or save a .drawio file) - editing can be done with edit_diagram by id.",
+            inputSchema: {
+                diagram_id: z
+                    .string()
+                    .describe(
+                        "Id returned by generate_diagram or edit_diagram",
+                    ),
+            },
+        },
+        async ({ diagram_id }) => {
+            const xml = getDiagram(diagram_id)
+            if (!xml) {
+                return toError(
+                    new Error(
+                        `Diagram ${diagram_id} not found - links expire after 30 days and are cleared on restart.`,
+                    ),
+                )
+            }
+            return {
+                content: [
+                    {
+                        type: "text" as const,
+                        text: `\`\`\`xml\n${xml}\n\`\`\``,
+                    },
+                ],
             }
         },
     )

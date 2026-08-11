@@ -26,12 +26,37 @@ The endpoint is stateless (no session stickiness required), so it runs fine behi
 | Tool | Arguments | Returns |
 |------|-----------|---------|
 | `generate_diagram` | `description` | Complete `.drawio` (mxfile) document |
-| `edit_diagram` | `current_xml`, `change` | Updated `.drawio` document |
+| `edit_diagram` | `change` + `diagram_id` (or `current_xml`) | New diagram id and links |
+| `get_diagram_xml` | `diagram_id` | The full `.drawio` XML |
 
-Both tools return the full `.drawio` XML inline, plus a rendered-preview link
-when `APP_BASE_URL` is set. Generation of a complex diagram can take several
-minutes; the endpoint streams MCP progress notifications throughout so clients
-and proxies keep the connection open.
+Responses are deliberately compact (a few hundred bytes): a diagram id, a link
+to open/edit it, and a render-only link. The XML is not inlined - fetch it with
+`get_diagram_xml` only when you need the markup. To modify a diagram, pass its
+`diagram_id` to `edit_diagram`; you never have to move the XML through the
+conversation.
+
+Generation of a complex diagram can take several minutes; the endpoint streams
+MCP progress notifications throughout, so clients and proxies keep the
+connection open.
+
+### Getting a PNG
+
+`/render/<id>` serves the diagram on its own, with no app UI, so an agent with a
+headless browser can screenshot it:
+
+```js
+const page = await browser.newPage()
+await page.goto(`${BASE}/render/${diagramId}`, { waitUntil: "networkidle" })
+const el = await page.waitForSelector(".mxgraph svg, svg")
+await el.screenshot({ path: "diagram.png" })
+```
+
+The viewer script for that page is loaded from `EMBED_DRAWIO_BASE_URL`, so
+self-hosted and offline deployments work without reaching diagrams.net.
+
+For a vector SVG, open the diagram in the app (`/?d=<id>`) and use draw.io's own
+SVG export - it handles label bounds and namespaces correctly, which a naive DOM
+extraction does not.
 
 Ask the agent something like *"draw an AWS three-tier architecture with an ALB, an EC2 auto-scaling group and RDS Multi-AZ"*, then save the returned XML as a `.drawio` file and open it in draw.io.
 
@@ -60,15 +85,30 @@ Response:
 {
   "xml": "<mxCell .../>...",
   "mxfile": "<mxfile>...</mxfile>",
+  "id": "H9Xq554svFMyXt614WN4qg",
+  "cellCount": 12,
   "notes": [],
-  "viewUrl": "https://your-deployment.example.com/#R..."
+  "viewUrl": "https://your-deployment.example.com/?d=<id>",
+  "renderUrl": "https://your-deployment.example.com/render/<id>",
+  "durableViewUrl": "https://your-deployment.example.com/#R..."
 }
 ```
 
 - `xml` — bare `<mxCell>` elements
 - `mxfile` — a complete document that draw.io can open directly
+- `id` — diagram id; use it with `/api/diagram/<id>` or the MCP tools
+- `cellCount` — number of cells, for a quick sanity check
 - `notes` — XML auto-fixes that were applied, if any
-- `viewUrl` — link that opens the diagram rendered in this app (only present when `APP_BASE_URL` is configured)
+- `viewUrl` — opens the diagram in the app for viewing/editing
+- `renderUrl` — render-only page, suitable for screenshotting
+- `durableViewUrl` — self-contained link with the diagram in the URL fragment; longer, but keeps working after the store expires or the server restarts
+
+The `viewUrl`/`renderUrl` links are backed by an in-memory store: entries last 30
+days, are capped at 500, and are cleared when the server restarts. Ids are
+128-bit random tokens, so the links work without an access code.
+
+Fetch a stored diagram directly with `GET /api/diagram/<id>` (add `?format=xml`
+for the raw document).
 
 ### Rendered preview link
 

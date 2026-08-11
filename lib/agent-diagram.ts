@@ -5,7 +5,12 @@ import {
     getServerModels,
     supportsTemperature,
 } from "@/lib/ai-providers"
-import { buildDiagramViewUrl } from "@/lib/diagram-link"
+import {
+    buildDiagramViewUrl,
+    buildRenderUrl,
+    buildShortViewUrl,
+} from "@/lib/diagram-link"
+import { putDiagram } from "@/lib/diagram-store"
 import { getSystemPrompt } from "@/lib/system-prompts"
 import { getShapeLibraryTool } from "@/lib/tools"
 import { validateAndFixXml, wrapWithMxFile } from "@/lib/utils"
@@ -35,8 +40,22 @@ export interface GenerateDiagramResult {
     xml: string
     mxfile: string
     notes?: string[]
-    /** Link that opens this diagram rendered in the app (needs APP_BASE_URL). */
+    /** Id of the stored diagram; agents use it to fetch the XML on demand. */
+    id: string
+    /** Short link that opens this diagram in the app (needs APP_BASE_URL). */
     viewUrl?: string
+    /**
+     * Render-only page (just the diagram, no app UI). A headless browser can
+     * open this and screenshot it to produce a PNG.
+     */
+    renderUrl?: string
+    /**
+     * Self-contained link with the diagram encoded in the URL fragment. Longer,
+     * but keeps working after the store expires or the server restarts.
+     */
+    durableViewUrl?: string
+    /** Number of cells in the diagram, for a short summary. */
+    cellCount: number
 }
 
 export class DiagramGenerationError extends Error {
@@ -145,13 +164,21 @@ export async function generateDiagram({
     }
 
     const finalMxfile = validation.fixed || mxfile
-    const viewUrl = buildDiagramViewUrl(finalMxfile)
+    const id = putDiagram(finalMxfile)
+    const viewUrl = buildShortViewUrl(id)
+    const renderUrl = buildRenderUrl(id)
+    const durableViewUrl = buildDiagramViewUrl(finalMxfile)
+    const cellCount = finalMxfile.split("<mxCell").length - 1
 
     return {
         xml: capturedXml,
         mxfile: finalMxfile,
+        id,
+        cellCount,
         ...(validation.fixes?.length && { notes: validation.fixes }),
         ...(viewUrl && { viewUrl }),
+        ...(renderUrl && { renderUrl }),
+        ...(durableViewUrl && { durableViewUrl }),
     }
 }
 
