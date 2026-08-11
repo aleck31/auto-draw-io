@@ -10,6 +10,7 @@ import {
     ResizablePanelGroup,
 } from "@/components/ui/resizable"
 import { useDiagram } from "@/contexts/diagram-context"
+import { decodeDiagramFragment } from "@/lib/diagram-link"
 
 const drawioBaseUrl =
     process.env.EMBED_DRAWIO_BASE_URL || "https://embed.diagrams.net"
@@ -17,6 +18,7 @@ const drawioBaseUrl =
 export default function Home() {
     const {
         drawioRef,
+        loadDiagram,
         handleDiagramExport,
         handleDiagramAutoSave,
         onDrawioLoad,
@@ -93,7 +95,20 @@ export default function Home() {
     const handleDrawioLoad = useCallback(() => {
         setIsDrawioReady(true)
         onDrawioLoad()
-    }, [onDrawioLoad])
+
+        // Open a shared diagram link (#R<data>), e.g. one returned by the agent
+        // /MCP endpoints. Consume the fragment so a later reload doesn't
+        // re-apply it over the user's edits.
+        const shared = decodeDiagramFragment(window.location.hash)
+        if (shared) {
+            loadDiagram(shared)
+            window.history.replaceState(
+                null,
+                "",
+                window.location.pathname + window.location.search,
+            )
+        }
+    }, [onDrawioLoad, loadDiagram])
 
     const handleDarkModeChange = async () => {
         await saveDiagramToStorage()
