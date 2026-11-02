@@ -29,11 +29,11 @@ import { useDiagram } from "@/contexts/diagram-context"
 import { useDiagramToolHandlers } from "@/hooks/use-diagram-tool-handlers"
 import { useDictionary } from "@/hooks/use-dictionary"
 import { getSelectedAIConfig, useModelConfig } from "@/hooks/use-model-config"
+import { aiCanvasContext, startAiPageTurn } from "@/lib/ai-page"
 import { getApiEndpoint } from "@/lib/base-path"
 import { findCachedResponse } from "@/lib/cached-responses"
 import { canvasFingerprint } from "@/lib/canvas-fingerprint"
 import type { CanvasNote } from "@/lib/canvas-note"
-import { listPages, pageModelXml } from "@/lib/diagram-pages"
 import { keepLatestScreenshot } from "@/lib/diagram-screenshot"
 import { isPdfFile, isTextFile } from "@/lib/pdf-utils"
 import { type FileData, useFileProcessor } from "@/lib/use-file-processor"
@@ -82,19 +82,6 @@ const MAX_AUTO_RETRY_COUNT = 2
 
 const MAX_CONTINUATION_RETRY_COUNT = 2 // Limit for truncation continuation retries
 
-/**
- * Check if auto-resubmit should happen based on tool errors.
- * Only checks the LAST tool part (most recent tool call), not all tool parts.
- */
-/** What the model gets of the canvas: page 1, plus the page names of a multi-page file */
-function aiCanvasContext(xml: string): { xml: string; pages?: string[] } {
-    const pages = listPages(xml)
-    return {
-        xml: pageModelXml(xml, null) ?? xml,
-        ...(pages.length > 1 && { pages: pages.map((page) => page.name) }),
-    }
-}
-
 // Rounds in one user turn where the model looks at a screenshot and fixes
 // the diagram; the screenshot checklist asks for at most two
 const MAX_SCREENSHOT_ROUNDS = 3
@@ -103,6 +90,10 @@ const MAX_SCREENSHOT_ROUNDS = 3
 // before the next message sends the canvas again
 const MAX_EDITS_WITHOUT_CANVAS = 4
 
+/**
+ * Check if auto-resubmit should happen based on tool errors.
+ * Only checks the LAST tool part (most recent tool call), not all tool parts.
+ */
 function hasToolErrors(messages: ChatMessage[]): boolean {
     const lastMessage = messages[messages.length - 1]
     if (!lastMessage || lastMessage.role !== "assistant") {
@@ -768,6 +759,8 @@ export default function ChatPanel({
 
     // Send chat message with headers
     const sendChatMessage = (parts: any, xml: string, sessionId: string) => {
+        // The AI works on the page the user is on, for the whole turn
+        startAiPageTurn()
         // Reset all retry/continuation state on user-initiated message
         autoRetryCountRef.current = 0
         continuationRetryCountRef.current = 0
@@ -803,7 +796,7 @@ export default function ChatPanel({
             { parts, metadata: { canvas } },
             {
                 body: {
-                    // The AI reads and writes the first page; it is told the
+                    // The AI reads and writes the page the user is on; it is told the
                     // others exist
                     ...aiCanvasContext(xml),
                     sessionId,

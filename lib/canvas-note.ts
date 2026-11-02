@@ -12,13 +12,19 @@
  * lib/chat-helpers.ts, Apache-2.0).
  */
 
-export type CanvasNote = { xml: string; pages?: string[] } | { unchanged: true }
+export type CanvasNote =
+    | { xml: string; pages?: string[]; page?: number }
+    | { unchanged: true }
 
 const LANGUAGE_NOTE =
     "Write your reply in the language of the user's own words in this message, not in the language of the diagram, attached files or this note."
 
-function pagesText(pages: string[] | undefined): string {
+function pagesText(
+    pages: string[] | undefined,
+    page: number | undefined,
+): string {
     if (!pages || pages.length < 2) return ""
+    const current = page && page >= 1 && page <= pages.length ? page : 1
     const list = pages
         .slice(0, 50)
         .map(
@@ -26,7 +32,7 @@ function pagesText(pages: string[] | undefined): string {
                 `${i + 1}. ${JSON.stringify(String(name).slice(0, 100))}`,
         )
         .join(", ")
-    return ` This file has ${pages.length} pages: ${list}. The XML is page 1 only, and your display_diagram, edit_diagram and append_diagram calls change page 1 only; the other pages are kept unchanged and you cannot see or edit them. If the user asks about another page, tell them you can only work on the first page for now.`
+    return ` This file has ${pages.length} pages: ${list}. The XML is page ${current}, the page the user is on; your display_diagram, edit_diagram and append_diagram calls change this page only, and the other pages stay as they are. To work on another page, the user opens it and sends a message there.`
 }
 
 /** The note appended to a user message, from its metadata */
@@ -37,9 +43,9 @@ export function canvasNoteText(note: CanvasNote | undefined): string {
     }
     const xml = note.xml?.trim() ?? ""
     if (!/<mxCell\b[^>]*\b(vertex|edge)="1"/.test(xml)) {
-        return `[Canvas: empty when this message was sent.${pagesText(note.pages)}]\n\n${LANGUAGE_NOTE}`
+        return `[Canvas: empty when this message was sent.${pagesText(note.pages, note.page)}]\n\n${LANGUAGE_NOTE}`
     }
-    return `[Canvas when this message was sent. It is the source of truth from this point on and shows any change the user made by hand; take cell ids for edit_diagram from it.${pagesText(note.pages)}]\n"""xml\n${xml}\n"""\n\n${LANGUAGE_NOTE}`
+    return `[Canvas when this message was sent. It is the source of truth from this point on and shows any change the user made by hand; take cell ids for edit_diagram from it.${pagesText(note.pages, note.page)}]\n"""xml\n${xml}\n"""\n\n${LANGUAGE_NOTE}`
 }
 
 // The text of a document the user attached: the client adds

@@ -1,6 +1,6 @@
 import type { MutableRefObject } from "react"
 import type { LoadOptions } from "@/contexts/diagram-context"
-import { pageModelXml, placeOnPage } from "@/lib/diagram-pages"
+import { aiPageModel, placeOnAiPage } from "@/lib/ai-page"
 import {
     type ScreenshotOutput,
     shrinkScreenshot,
@@ -69,7 +69,7 @@ interface UseDiagramToolHandlersParams {
 }
 
 /**
- * Validates the page the AI wrote on its own, then puts it on the first page
+ * Validates the page the AI wrote on its own, then puts it on the AI's page
  * of the canvas file so the other pages stay. Validating the whole file
  * instead would treat ids repeated across pages as duplicates.
  */
@@ -83,7 +83,7 @@ function placeAiPage(
     }
     const page = validation.fixed || pageXml
     return {
-        xml: canvasXml ? placeOnPage(page, canvasXml, null) : page,
+        xml: canvasXml ? placeOnAiPage(page, canvasXml) : page,
         // Auto-fixes changed what the model wrote: its picture is not exact
         fixed: !!validation.fixed,
     }
@@ -246,7 +246,7 @@ NEXT STEP: Call append_diagram with the continuation XML.
         // Wrap raw XML with full mxfile structure for draw.io
         const fullXml = wrapWithMxFile(finalXml)
 
-        // Validate the drawn page, then load it as page 1 of the canvas file
+        // Validate the drawn page, then load it as the AI's page of the canvas file
         const placed = placeAiPage(fullXml, chartXMLRef.current)
         const validationError =
             placed.error ??
@@ -331,12 +331,13 @@ ${finalXml}
                 }
             }
 
-            // What the model sees in error messages: the page it edits
-            const currentPageXml = pageModelXml(currentXml, null) ?? currentXml
+            // The operations apply to the AI's page; it is also what the model
+            // sees in error messages
+            const currentPageXml = aiPageModel(currentXml) ?? currentXml
 
             const { applyDiagramOperations } = await import("@/lib/utils")
             const { result: editedXml, errors } = applyDiagramOperations(
-                currentXml,
+                currentPageXml,
                 operations,
             )
 
@@ -369,10 +370,10 @@ Please check the cell IDs and retry.`,
                 return
             }
 
-            // Operations change the first page; validate it alone and put it
+            // Operations change the AI's page; validate it alone and put it
             // back so the other pages stay
             const placed = placeAiPage(
-                pageModelXml(editedXml, null) ?? editedXml,
+                editedXml,
                 chartXMLRef.current || currentXml,
             )
             const validationError =

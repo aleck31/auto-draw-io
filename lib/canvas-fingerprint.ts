@@ -8,7 +8,7 @@
  * the model sees: each cell's id, parent, kind, value, style, ends and
  * geometry, in draw.io's tree order. Browser only (DOMParser).
  */
-import { pageModelXml } from "@/lib/diagram-pages"
+import { aiPageModel } from "@/lib/ai-page"
 
 const num = (value: string | null) => {
     const n = Number(value ?? 0)
@@ -71,9 +71,9 @@ function cellKey(cell: Element): string {
     ].join("|")
 }
 
-/** Fingerprint of page 1 of a document (or of a bare mxGraphModel) */
+/** Fingerprint of the AI's page of a document (or of a bare mxGraphModel) */
 export function canvasFingerprint(xml: string): string | null {
-    const model = pageModelXml(xml, null)
+    const model = aiPageModel(xml)
     if (!model) return null
     const doc = new DOMParser().parseFromString(model, "text/xml")
     if (doc.querySelector("parsererror")) return null

@@ -341,7 +341,42 @@ test.describe("Multi-page files", () => {
         expect(stored).not.toMatch(/_dup\d/)
     })
 
-    test("an AI change while the user is on another page loads in full and returns them there", async ({
+    test("edit_diagram changes the page the user is on", async ({ page }) => {
+        await seedDiagram(page, THREE)
+        await mockChat(page, [
+            toolCallTurn("edit_diagram", {
+                operations: [
+                    {
+                        operation: "update",
+                        cell_id: "p2-a",
+                        new_xml:
+                            '<mxCell id="p2-a" value="P2 renamed" style="rounded=1;" vertex="1" parent="1"><mxGeometry x="40" y="40" width="120" height="60" as="geometry"/></mxCell>',
+                    },
+                ],
+            }),
+        ])
+        await openApp(page)
+        await page
+            .frameLocator("iframe")
+            .locator(".geTabContainer")
+            .getByText("Network")
+            .first()
+            .click()
+        await page.waitForTimeout(500)
+        await sendAndWait(page, "rename the box")
+        const after = await canvasState(page)
+        expect(after.page).toBe("Network")
+        expect(after.labels).toEqual(["P2 renamed"])
+        expect(after.fullLoads).toBe(0)
+        const stored = await page.evaluate(
+            () => localStorage.getItem("auto-draw-io-diagram-xml") || "",
+        )
+        expect(stored).toContain("P1 box")
+        expect(stored).toContain("P3 box")
+        expect(stored).not.toMatch(/value="P2 box"/)
+    })
+
+    test("the AI reads and writes the page the user is on, in place", async ({
         page,
     }) => {
         await seedDiagram(page, THREE)
@@ -358,17 +393,29 @@ test.describe("Multi-page files", () => {
             .first()
             .click()
         await page.waitForTimeout(500)
-        expect((await canvasState(page)).page).toBe("Data")
+        const before = await canvasState(page)
+        expect(before.page).toBe("Data")
 
-        await sendAndWait(page, "redraw page 1")
+        await sendAndWait(page, "redraw this page")
+        const request = await page.evaluate(
+            () => (window as any).__chatRequests[0],
+        )
+        const note = request.messages.at(-1).metadata.canvas
+        expect(note.xml).toContain("P3 box")
+        expect(note.xml).not.toContain("P1 box")
+        expect(note.page).toBe(3)
+
         const after = await canvasState(page)
         expect(after.page).toBe("Data")
-        expect(after.pages).toEqual(["Overview", "Network", "Data"])
+        expect(after.labels).toEqual(["New", "Flow"])
+        expect(after.fullLoads).toBe(0)
+        expect(after.undoLength).toBe(before.undoLength + 1)
         const stored = await page.evaluate(
             () => localStorage.getItem("auto-draw-io-diagram-xml") || "",
         )
-        expect(stored).toContain("New")
-        expect(stored).toContain("P3 box")
+        expect(stored).toContain("P1 box")
+        expect(stored).toContain("P2 box")
+        expect(stored).not.toContain("P3 box")
     })
 })
 

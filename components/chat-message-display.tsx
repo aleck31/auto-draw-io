@@ -27,6 +27,7 @@ import {
     ReasoningTrigger,
 } from "@/components/ai-elements/reasoning"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { aiPageModel, placeOnAiPage } from "@/lib/ai-page"
 import { getApiEndpoint } from "@/lib/base-path"
 import { validateEachPage } from "@/lib/diagram-pages"
 import {
@@ -113,6 +114,8 @@ function OperationsDisplay({ operations }: { operations: DiagramOperation[] }) {
 }
 
 import { useDiagram } from "@/contexts/diagram-context"
+
+const EMPTY_PAGE = `<mxfile><diagram name="Page-1" id="page-1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>`
 
 // Helper to split text content into regular text and file sections (PDF or text files)
 interface TextSection {
@@ -374,7 +377,12 @@ export function ChatMessageDisplay({
                     const baseXML =
                         chartXML ||
                         `<mxfile><diagram name="Page-1" id="page-1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>`
-                    const replacedXML = replaceNodes(baseXML, convertedXml)
+                    // The cells become the AI's page of the canvas file; the
+                    // other pages stay as they are
+                    const replacedXML = placeOnAiPage(
+                        replaceNodes(EMPTY_PAGE, convertedXml),
+                        baseXML,
+                    )
 
                     const xmlProcessTime = performance.now() - startTime
 
@@ -608,17 +616,21 @@ export function ChatMessageDisplay({
                                                 if (!origXml) return
 
                                                 try {
+                                                    // The operations apply to
+                                                    // the AI's page, which then
+                                                    // goes back into the file
                                                     const {
-                                                        result: editedXml,
+                                                        result: editedPage,
                                                     } = applyDiagramOperations(
-                                                        origXml,
+                                                        aiPageModel(origXml) ??
+                                                            origXml,
                                                         pending.operations,
                                                     )
-                                                    // A complete document (page
-                                                    // 1 edited, other pages as
-                                                    // they were): shown as is
                                                     onDisplayChart(
-                                                        editedXml,
+                                                        placeOnAiPage(
+                                                            editedPage,
+                                                            origXml,
+                                                        ),
                                                         true,
                                                         {
                                                             mode: "preview",
