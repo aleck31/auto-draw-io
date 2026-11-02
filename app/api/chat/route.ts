@@ -260,6 +260,14 @@ async function handleChatRequest(req: Request): Promise<Response> {
     // Read minimal style preference from header
     const minimalStyle = req.headers.get("x-minimal-style") === "true"
 
+    // Per-request thinking effort override from the UI. Validated against the
+    // allowed set so a bad header can't be forwarded to the provider.
+    const REASONING_EFFORTS = ["low", "medium", "high", "xhigh", "max"]
+    const effortHeader = req.headers.get("x-reasoning-effort")
+    if (effortHeader && REASONING_EFFORTS.includes(effortHeader)) {
+        clientOverrides.reasoningEffort = effortHeader
+    }
+
     // Get AI model with optional client overrides
     const { model, providerOptions, headers, modelId } =
         getAIModel(clientOverrides)
@@ -514,12 +522,14 @@ ${userInputText}
     const result = streamText({
         model,
         abortSignal: req.signal,
-        // Default to 32000 when unset. Without an explicit value Bedrock falls
-        // back to ~4096, which truncates large diagrams. Claude 4.x supports up
-        // to 64000 output tokens.
+        // Default to 64000 (the Claude 4.x maximum). Without an explicit value
+        // Bedrock falls back to ~4096, which truncates large diagrams. 64000
+        // rather than 32000 because thinking tokens share this budget: a complex
+        // restructure at a high effort can otherwise exhaust it and finish with
+        // reason "length", producing no diagram at all.
         maxOutputTokens: process.env.MAX_OUTPUT_TOKENS
             ? parseInt(process.env.MAX_OUTPUT_TOKENS, 10)
-            : 32000,
+            : 64000,
         stopWhen: stepCountIs(5),
         // Repair truncated tool calls when maxOutputTokens is reached mid-JSON
         experimental_repairToolCall: async ({ toolCall, error }) => {

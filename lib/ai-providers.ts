@@ -49,6 +49,11 @@ export interface ClientOverrides {
     awsSecretAccessKey?: string | null
     awsRegion?: string | null
     awsSessionToken?: string | null
+    /**
+     * Per-request thinking effort (low|medium|high|xhigh|max), overriding the
+     * server-wide BEDROCK_REASONING_EFFORT default.
+     */
+    reasoningEffort?: string | null
 }
 
 // Providers that can be used with client-provided API keys
@@ -112,6 +117,7 @@ function parseIntSafe(
 function buildProviderOptions(
     provider: ProviderName,
     modelId?: string,
+    reasoningEffortOverride?: string,
 ): Record<string, any> | undefined {
     const options: Record<string, any> = {}
 
@@ -275,13 +281,27 @@ function buildProviderOptions(
                 1024,
                 64000,
             )
-            const reasoningEffort = process.env.BEDROCK_REASONING_EFFORT
+            // A per-request override (from the UI) takes precedence over the
+            // server-wide BEDROCK_REASONING_EFFORT default.
+            //
+            // Default to "medium" rather than letting Bedrock apply its own
+            // default of "high": at "high" Claude almost always thinks, and
+            // because thinking tokens count against maxOutputTokens, a complex
+            // edit can spend the entire budget thinking and finish with reason
+            // "length" - i.e. minutes of thinking and no diagram. Measured on a
+            // whole-diagram restructure: high took 300s and was truncated,
+            // medium 148s, low ~100s, with comparable output size. "medium"
+            // keeps headroom for hard layout reasoning; users can raise or lower
+            // it per request in the UI.
+            const reasoningEffort =
+                reasoningEffortOverride || process.env.BEDROCK_REASONING_EFFORT
 
             // Bedrock reasoning config.
             // - Claude 4.7+/5.x: adaptive thinking with a summarized (readable)
             //   trace, ENABLED BY DEFAULT. "adaptive" lets the model scale
             //   thinking to task difficulty, so simple edits stay cheap.
-            //   BEDROCK_REASONING_EFFORT (low|medium|high|xhigh|max) caps it.
+            //   BEDROCK_REASONING_EFFORT (low|medium|high|xhigh|max) overrides
+            //   the "medium" default.
             // - Claude <= 4.6: legacy thinking.type:"enabled", opt-in via
             //   BEDROCK_REASONING_BUDGET_TOKENS.
             // - Nova: type "enabled" + maxReasoningEffort, opt-in.
@@ -303,14 +323,13 @@ function buildProviderOptions(
                 const reasoningConfig: Record<string, any> = {
                     type: "adaptive",
                     display: "summarized",
-                }
-                if (reasoningEffort) {
-                    reasoningConfig.maxReasoningEffort = reasoningEffort as
+                    // Always cap the effort (default "medium"); see note above.
+                    maxReasoningEffort: (reasoningEffort || "medium") as
                         | "low"
                         | "medium"
                         | "high"
                         | "xhigh"
-                        | "max"
+                        | "max",
                 }
                 options.bedrock = { reasoningConfig }
             } else if (
@@ -496,7 +515,11 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
     let headers: Record<string, string> | undefined
 
     // Build provider-specific options from environment variables
-    const customProviderOptions = buildProviderOptions(provider, modelId)
+    const customProviderOptions = buildProviderOptions(
+        provider,
+        modelId,
+        overrides?.reasoningEffort || undefined,
+    )
 
     switch (provider) {
         case "bedrock": {

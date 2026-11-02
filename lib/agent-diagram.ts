@@ -97,7 +97,7 @@ export async function generateDiagram({
         instructions: getSystemPrompt(modelId, false),
         maxOutputTokens: process.env.MAX_OUTPUT_TOKENS
             ? parseInt(process.env.MAX_OUTPUT_TOKENS, 10)
-            : 32000,
+            : 64000,
         stopWhen: isStepCount(5),
         ...(abortSignal && { abortSignal }),
         onStepEnd: () => {
