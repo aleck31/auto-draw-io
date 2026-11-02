@@ -27,6 +27,7 @@ import {
     setTraceOutput,
     wrapWithObserve,
 } from "@/lib/langfuse"
+import { classifyLLMError } from "@/lib/llm-errors"
 import { getSystemPrompt } from "@/lib/system-prompts"
 import {
     createWebSearchTool,
@@ -828,6 +829,13 @@ Example: If previous output ended with '<mxCell id="x" style="rounded=1', contin
 
     return result.toUIMessageStreamResponse({
         sendReasoning: true,
+        // A provider error during the stream (context too long, image not
+        // supported, ...) as a message the user can act on
+        onError: (error) => {
+            const { code, message } = classifyLLMError(error)
+            console.error(`[chat] stream error (${code}):`, error)
+            return message
+        },
         messageMetadata: ({ part }) => {
             if (part.type === "finish") {
                 const usage = (part as any).totalUsage
@@ -852,7 +860,7 @@ function handleError(error: unknown): Response {
     if (APICallError.isInstance(error)) {
         return Response.json(
             {
-                error: error.message,
+                error: classifyLLMError(error).message,
                 ...(isDev && {
                     details: error.responseBody,
                     stack: error.stack,
