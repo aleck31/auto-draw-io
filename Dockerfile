@@ -1,7 +1,10 @@
 # Multi-stage Dockerfile for Next.js
 
+# Base image for every stage; CodeBuild passes a public ECR mirror to avoid Docker Hub rate limits
+ARG NODE_IMAGE=node:26-alpine
+
 # Stage 1: Install dependencies
-FROM node:22-alpine AS deps
+FROM ${NODE_IMAGE} AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -14,7 +17,7 @@ RUN npm ci
 # Stage 2: draw.io, in its own stage so source changes don't re-download it.
 # DRAWIO_WAR_PATH points at a draw.war in the build context for air-gapped
 # builds; EMBED_DRAWIO_BASE_URL (an external draw.io) skips it.
-FROM node:22-alpine AS drawio
+FROM ${NODE_IMAGE} AS drawio
 WORKDIR /app
 ARG EMBED_DRAWIO_BASE_URL=
 ARG DRAWIO_WAR_PATH=
@@ -25,7 +28,7 @@ RUN mkdir -p public/drawio && \
     EMBED_DRAWIO_BASE_URL="$EMBED_DRAWIO_BASE_URL" node scripts/fetch-drawio.mjs
 
 # Stage 3: Build application
-FROM node:22-alpine AS builder
+FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
 
 # Copy node_modules from deps stage
@@ -48,7 +51,7 @@ ENV AUTO_BASE_PATH=${AUTO_BASE_PATH}
 RUN npm run build
 
 # Stage 4: Production runtime
-FROM node:22-alpine AS runner
+FROM ${NODE_IMAGE} AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
