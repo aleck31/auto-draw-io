@@ -31,6 +31,8 @@ import { useDictionary } from "@/hooks/use-dictionary"
 import { getSelectedAIConfig, useModelConfig } from "@/hooks/use-model-config"
 import { getApiEndpoint } from "@/lib/base-path"
 import { findCachedResponse } from "@/lib/cached-responses"
+import { canvasFingerprint } from "@/lib/canvas-fingerprint"
+import type { CanvasNote } from "@/lib/canvas-note"
 import { listPages, pageModelXml } from "@/lib/diagram-pages"
 import { keepLatestScreenshot } from "@/lib/diagram-screenshot"
 import { isPdfFile, isTextFile } from "@/lib/pdf-utils"
@@ -96,6 +98,10 @@ function aiCanvasContext(xml: string): { xml: string; pages?: string[] } {
 // Rounds in one user turn where the model looks at a screenshot and fixes
 // the diagram; the screenshot checklist asks for at most two
 const MAX_SCREENSHOT_ROUNDS = 3
+
+// Diagram calls the model may stack on its last full picture of the canvas
+// before the next message sends the canvas again
+const MAX_EDITS_WITHOUT_CANVAS = 4
 
 function hasToolErrors(messages: ChatMessage[]): boolean {
     const lastMessage = messages[messages.length - 1]
@@ -260,6 +266,13 @@ export default function ChatPanel({
     const LOCAL_STORAGE_DEBOUNCE_MS = 1000 // Save at most once per second
 
     // Diagram tool handlers (display_diagram, edit_diagram, append_diagram)
+    // The canvas as the model knows it: the last one sent in a canvas note,
+    // plus its own diagram calls since, while each of them landed exactly as
+    // written. Null when the model's picture is not exact (an auto-fix, a
+    // continued drawing, a reload): the next message then sends the canvas.
+    const modelCanvasRef = useRef<string | null>(null)
+    const modelEditsRef = useRef(0)
+
     // A tool result carries a screenshot the model hasn't looked at yet
     const screenshotPendingRef = useRef(false)
     const screenshotRoundsRef = useRef(0)
@@ -275,6 +288,10 @@ export default function ChatPanel({
         capturePng,
         onScreenshotAttached: () => {
             screenshotPendingRef.current = true
+        },
+        onModelCanvas: (xml, exact) => {
+            modelCanvasRef.current = exact ? canvasFingerprint(xml) : null
+            modelEditsRef.current++
         },
     })
 
@@ -666,21 +683,12 @@ export default function ChatPanel({
                 // Add the combined text as the first part
                 parts.unshift({ type: "text", text: userText })
 
-                // Get previous XML from the last snapshot (before this message)
-                const snapshotKeys = Array.from(
-                    xmlSnapshotsRef.current.keys(),
-                ).sort((a, b) => b - a)
-                const previousXml =
-                    snapshotKeys.length > 0
-                        ? xmlSnapshotsRef.current.get(snapshotKeys[0]) || ""
-                        : ""
-
                 // Save XML snapshot for this message (will be at index = current messages.length)
                 const messageIndex = messages.length
                 xmlSnapshotsRef.current.set(messageIndex, chartXml)
                 saveXmlSnapshots()
 
-                sendChatMessage(parts, chartXml, previousXml, sessionId)
+                sendChatMessage(parts, chartXml, sessionId)
 
                 // Token count is tracked in onFinish with actual server usage
                 setInput("")
@@ -693,6 +701,8 @@ export default function ChatPanel({
     }
 
     const handleNewChat = useCallback(() => {
+        modelCanvasRef.current = null
+        modelEditsRef.current = 0
         setMessages([])
         setInput("")
         clearDiagram()
@@ -738,14 +748,6 @@ export default function ChatPanel({
 
     // Helper functions for message actions (regenerate/edit)
     // Extract previous XML snapshot before a given message index
-    const getPreviousXml = (beforeIndex: number): string => {
-        const snapshotKeys = Array.from(xmlSnapshotsRef.current.keys())
-            .filter((k) => k < beforeIndex)
-            .sort((a, b) => b - a)
-        return snapshotKeys.length > 0
-            ? xmlSnapshotsRef.current.get(snapshotKeys[0]) || ""
-            : ""
-    }
 
     // Restore diagram from snapshot and update ref
     const restoreDiagramFromSnapshot = (savedXml: string) => {
@@ -765,12 +767,7 @@ export default function ChatPanel({
     }
 
     // Send chat message with headers
-    const sendChatMessage = (
-        parts: any,
-        xml: string,
-        previousXml: string,
-        sessionId: string,
-    ) => {
+    const sendChatMessage = (parts: any, xml: string, sessionId: string) => {
         // Reset all retry/continuation state on user-initiated message
         autoRetryCountRef.current = 0
         continuationRetryCountRef.current = 0
@@ -786,16 +783,29 @@ export default function ChatPanel({
             ? selectedId.replace("__server__:", "")
             : undefined
 
+        // The message carries the canvas only when the model doesn't already
+        // know it (lib/canvas-note.ts); kept in its metadata so every later
+        // request sends the same text
+        const fingerprint = canvasFingerprint(xml)
+        const known =
+            fingerprint !== null &&
+            fingerprint === modelCanvasRef.current &&
+            modelEditsRef.current <= MAX_EDITS_WITHOUT_CANVAS
+        const canvas: CanvasNote = known
+            ? { unchanged: true }
+            : aiCanvasContext(xml)
+        if (!known) {
+            modelCanvasRef.current = fingerprint
+            modelEditsRef.current = 0
+        }
+
         sendMessage(
-            { parts },
+            { parts, metadata: { canvas } },
             {
                 body: {
                     // The AI reads and writes the first page; it is told the
                     // others exist
                     ...aiCanvasContext(xml),
-                    previousXml: previousXml
-                        ? aiCanvasContext(previousXml).xml
-                        : "",
                     sessionId,
                     ...(serverModelId && { serverModelId }),
                     // Move sensitive data to request body for better security
@@ -914,7 +924,8 @@ export default function ChatPanel({
         }
 
         // Get previous XML and restore diagram state
-        const previousXml = getPreviousXml(userMessageIndex)
+        // The later history is dropped: send the canvas with the message
+        modelCanvasRef.current = null
         restoreDiagramFromSnapshot(savedXml)
 
         // Clean up snapshots for messages after the user message (they will be removed)
@@ -928,7 +939,7 @@ export default function ChatPanel({
         })
 
         // Now send the message after state is guaranteed to be updated
-        sendChatMessage(userParts, savedXml, previousXml, sessionId)
+        sendChatMessage(userParts, savedXml, sessionId)
     }
 
     const handleEditMessage = async (messageIndex: number, newText: string) => {
@@ -949,7 +960,7 @@ export default function ChatPanel({
         }
 
         // Get previous XML and restore diagram state
-        const previousXml = getPreviousXml(messageIndex)
+        modelCanvasRef.current = null
         restoreDiagramFromSnapshot(savedXml)
 
         // Clean up snapshots for messages after the user message (they will be removed)
@@ -971,7 +982,7 @@ export default function ChatPanel({
         })
 
         // Now send the edited message after state is guaranteed to be updated
-        sendChatMessage(newParts, savedXml, previousXml, sessionId)
+        sendChatMessage(newParts, savedXml, sessionId)
     }
 
     // Collapsed view (desktop only)

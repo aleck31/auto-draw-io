@@ -61,6 +61,11 @@ interface UseDiagramToolHandlersParams {
     capturePng?: () => Promise<string>
     /** A screenshot was attached to a tool result: the model should see it */
     onScreenshotAttached?: () => void
+    /**
+     * A diagram call of the model is on the canvas; exact when the canvas is
+     * what the model wrote (no auto-fix, not assembled by the app)
+     */
+    onModelCanvas?: (xml: string, exact: boolean) => void
 }
 
 /**
@@ -71,13 +76,17 @@ interface UseDiagramToolHandlersParams {
 function placeAiPage(
     pageXml: string,
     canvasXml: string,
-): { xml: string; error?: undefined } | { error: string } {
+): { xml: string; fixed: boolean; error?: undefined } | { error: string } {
     const validation = validateAndFixXml(pageXml)
     if (!validation.valid) {
         return { error: validation.error || "Invalid diagram XML" }
     }
     const page = validation.fixed || pageXml
-    return { xml: canvasXml ? placeOnPage(page, canvasXml, null) : page }
+    return {
+        xml: canvasXml ? placeOnPage(page, canvasXml, null) : page,
+        // Auto-fixes changed what the model wrote: its picture is not exact
+        fixed: !!validation.fixed,
+    }
 }
 
 /**
@@ -97,6 +106,7 @@ export function useDiagramToolHandlers({
     onExport,
     capturePng,
     onScreenshotAttached,
+    onModelCanvas,
 }: UseDiagramToolHandlersParams) {
     /**
      * The result message, with a PNG of the canvas when the model asked for
@@ -275,6 +285,7 @@ ${finalXml}
                     "[display_diagram] Success! Adding tool output with state: output-available",
                 )
             }
+            if ("xml" in placed) onModelCanvas?.(placed.xml, !placed.fixed)
             addToolOutput({
                 tool: "display_diagram",
                 toolCallId: toolCall.toolCallId,
@@ -394,6 +405,7 @@ Please fix the operations to avoid structural issues.`,
                 return
             }
             onExport()
+            if ("xml" in placed) onModelCanvas?.(placed.xml, !placed.fixed)
             addToolOutput({
                 tool: "edit_diagram",
                 toolCallId: toolCall.toolCallId,
@@ -500,6 +512,7 @@ ${finalXml.substring(0, 2000)}...
 Please use display_diagram with corrected XML.`,
                 })
             } else {
+                if ("xml" in placed) onModelCanvas?.(placed.xml, false)
                 addToolOutput({
                     tool: "append_diagram",
                     toolCallId: toolCall.toolCallId,

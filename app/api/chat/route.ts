@@ -18,6 +18,11 @@ import {
 } from "@/lib/ai-providers"
 import { findCachedResponse } from "@/lib/cached-responses"
 import {
+    type CanvasNote,
+    withCanvasNotes,
+    withoutOldAttachments,
+} from "@/lib/canvas-note"
+import {
     diagramToolModelOutput,
     keepLatestScreenshot,
 } from "@/lib/diagram-screenshot"
@@ -184,7 +189,6 @@ async function handleChatRequest(req: Request): Promise<Response> {
     const {
         messages,
         xml,
-        previousXml,
         sessionId,
         aiConfig,
         tavilyApiKey,
@@ -308,27 +312,25 @@ async function handleChatRequest(req: Request): Promise<Response> {
     // Get the appropriate system prompt based on model (extended for Opus/Haiku 4.5)
     const systemMessage = getSystemPrompt(modelId)
 
-    // Extract file parts (images) from the last user message
-    const fileParts =
-        lastUserMessage?.parts?.filter((part: any) => part.type === "file") ||
-        []
-
-    // User input only - XML is now in a separate cached system message
-    // The reply language is repeated next to the message: the diagram, files
-    // and context are often in another language than the user writes in
-    const formattedUserInput = `User input:
-"""md
-${userInputText}
-"""
-
-Write your reply in the language of the user's own words above, not in the language of the diagram, attached files or the canvas notes.`
-
     // Convert UIMessages to ModelMessages and add system message
     // Only the latest screenshot goes to the model as an image; the diagram
     // tools' toModelOutput turns it into an image part
+    //
+    // Each user message ends with its canvas note (lib/canvas-note.ts): the
+    // canvas when it was sent, or that it was unchanged. The note comes from
+    // the message's metadata, so the history is the same in every request
+    // and stays in the provider's prompt cache. Attachments of earlier
+    // messages are left out; the newest message keeps them.
+    const requestCanvas: CanvasNote | undefined =
+        typeof xml === "string"
+            ? { xml, ...(Array.isArray(pages) && { pages }) }
+            : undefined
     const modelMessages = await convertToModelMessages(
         keepLatestScreenshot(
-            messages as Parameters<typeof convertToModelMessages>[0],
+            withCanvasNotes(
+                withoutOldAttachments(messages),
+                requestCanvas,
+            ) as Parameters<typeof convertToModelMessages>[0],
         ),
         {
             tools: Object.fromEntries(
@@ -490,31 +492,6 @@ Write your reply in the language of the user's own words above, not in the langu
         }
     })
 
-    // Update the last message with user input only (XML moved to separate cached system message)
-    if (enhancedMessages.length >= 1) {
-        const lastModelMessage = enhancedMessages[enhancedMessages.length - 1]
-        if (lastModelMessage.role === "user") {
-            // Build content array with user input text and file parts
-            const contentParts: any[] = [
-                { type: "text", text: formattedUserInput },
-            ]
-
-            // Add image parts back
-            for (const filePart of fileParts) {
-                contentParts.push({
-                    type: "image",
-                    image: filePart.url,
-                    mimeType: filePart.mediaType,
-                })
-            }
-
-            enhancedMessages = [
-                ...enhancedMessages.slice(0, -1),
-                { ...lastModelMessage, content: contentParts },
-            ]
-        }
-    }
-
     // Add cache point to the last assistant message in conversation history
     // This caches the entire conversation prefix for subsequent requests
     // Strategy: system (cached) + history with last assistant (cached) + new user message
@@ -533,43 +510,12 @@ Write your reply in the language of the user's own words above, not in the langu
         }
     }
 
-    // Multi-page files: the client sends only the first page's XML plus the
-    // page names, so the model knows the other pages exist and stay as they are.
-    const pageNames: string[] = Array.isArray(pages)
-        ? pages
-              .filter((name: unknown) => typeof name === "string")
-              .slice(0, 50)
-              .map((name: string) => name.slice(0, 100))
-        : []
-    const pagesNote =
-        pageNames.length > 1
-            ? `This file has ${pageNames.length} pages: ${pageNames
-                  .map((name, i) => `${i + 1}. ${JSON.stringify(name)}`)
-                  .join(
-                      ", ",
-                  )}. The XML below is page 1 only, and your display_diagram, edit_diagram and append_diagram calls change page 1 only; the other pages are kept unchanged and you cannot see or edit them. If the user asks about another page, tell them you can only work on the first page for now.\n\n`
-            : ""
-
-    // System messages with multiple cache breakpoints for optimal caching:
-    // - Breakpoint 1: Static instructions (~1500 tokens) - rarely changes
-    // - Breakpoint 2: Current XML context - changes per diagram, but constant within a conversation turn
-    // This allows: if only user message changes, both system caches are reused
-    //              if XML changes, instruction cache is still reused
+    // The instructions are the only system message and never change within
+    // a conversation; the canvas travels in the user messages
     const systemMessages = [
-        // Cache breakpoint 1: Instructions (rarely change)
         {
             role: "system" as const,
             content: systemMessage,
-            ...(shouldCache && {
-                providerOptions: {
-                    bedrock: { cachePoint: { type: "default" } },
-                },
-            }),
-        },
-        // Cache breakpoint 2: Previous and Current diagram XML context
-        {
-            role: "system" as const,
-            content: `${pagesNote}${previousXml ? `Previous diagram XML (before user's last message):\n"""xml\n${previousXml}\n"""\n\n` : ""}Current diagram XML (AUTHORITATIVE - the source of truth):\n"""xml\n${xml || ""}\n"""\n\nIMPORTANT: The "Current diagram XML" is the SINGLE SOURCE OF TRUTH for what's on the canvas right now. The user can manually add, delete, or modify shapes directly in draw.io. Always count and describe elements based on the CURRENT XML, not on what you previously generated. If both previous and current XML are shown, compare them to understand what the user changed. When using edit_diagram, COPY search patterns exactly from the CURRENT XML - attribute order matters!`,
             ...(shouldCache && {
                 providerOptions: {
                     bedrock: { cachePoint: { type: "default" } },
