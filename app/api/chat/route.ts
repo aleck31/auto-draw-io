@@ -602,9 +602,30 @@ ${userInputText}
                 userId,
             }),
         }),
-        onFinish: ({ text, totalUsage }) => {
-            // AI SDK 6 telemetry auto-reports token usage on its spans
-            setTraceOutput(text)
+        onFinish: (event: any) => {
+            // AI SDK telemetry auto-reports usage on its spans, but we also log
+            // a one-line summary so long/expensive turns (notably runaway
+            // thinking) can be diagnosed from server logs alone.
+            //
+            // Note: Bedrock does not break out reasoning tokens - thinking is
+            // counted inside outputTokens - so a high `out` on a simple request
+            // is the signal that the model spent its budget thinking.
+            const usage = event?.totalUsage ?? event?.usage
+            const reasoning = usage?.outputTokenDetails?.reasoningTokens
+            console.log(
+                `[usage] model=${modelId} effort=${
+                    clientOverrides.reasoningEffort ||
+                    process.env.BEDROCK_REASONING_EFFORT ||
+                    "auto"
+                } in=${usage?.inputTokens ?? "?"} out=${
+                    usage?.outputTokens ?? "?"
+                }${reasoning !== undefined ? ` thinking=${reasoning}` : ""} cacheRead=${
+                    usage?.inputTokenDetails?.cacheReadTokens ?? 0
+                } total=${usage?.totalTokens ?? "?"} steps=${
+                    event?.steps?.length ?? "?"
+                } finish=${event?.finishReason ?? "?"}`,
+            )
+            setTraceOutput(event?.text ?? "")
         },
         tools: {
             // Client-side tool that will be executed on the client

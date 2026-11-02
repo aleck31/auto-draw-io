@@ -45,6 +45,7 @@ export const STORAGE_DIAGRAM_XML_KEY = "auto-draw-io-diagram-xml"
 
 // sessionStorage keys
 const SESSION_STORAGE_INPUT_KEY = "auto-draw-io-input"
+const STORAGE_REASONING_EFFORT_KEY = "auto-draw-io-reasoning-effort"
 
 // Type for message parts (tool calls and their states)
 interface MessagePart {
@@ -166,6 +167,11 @@ export default function ChatPanel({
         return localStorage.getItem("auto-draw-io-vlm-validation") === "true"
     })
     const [serverModels, setServerModels] = useState<string[]>([])
+    // "auto" defers to the server's BEDROCK_REASONING_EFFORT default.
+    const [reasoningEffort, setReasoningEffort] = useState(() => {
+        if (typeof window === "undefined") return "auto"
+        return localStorage.getItem(STORAGE_REASONING_EFFORT_KEY) || "auto"
+    })
 
     // Fetch server models on mount
     useEffect(() => {
@@ -756,6 +762,9 @@ export default function ChatPanel({
                     ...(minimalStyle && {
                         "x-minimal-style": "true",
                     }),
+                    ...(reasoningEffort !== "auto" && {
+                        "x-reasoning-effort": reasoningEffort,
+                    }),
                 },
             },
         )
@@ -1064,7 +1073,6 @@ export default function ChatPanel({
                     status={status}
                     onSubmit={onFormSubmit}
                     onChange={handleInputChange}
-                    onClearChat={handleNewChat}
                     onStop={stop}
                     files={files}
                     onFileChange={handleFileChange}
@@ -1080,6 +1088,11 @@ export default function ChatPanel({
                     onModelSelect={modelConfig.setSelectedModelId}
                     showUnvalidatedModels={modelConfig.showUnvalidatedModels}
                     serverModels={serverModels}
+                    reasoningEffort={reasoningEffort}
+                    onReasoningEffortChange={(v) => {
+                        setReasoningEffort(v)
+                        localStorage.setItem(STORAGE_REASONING_EFFORT_KEY, v)
+                    }}
                 />
             </footer>
 

@@ -25,7 +25,7 @@ The endpoint is stateless (no session stickiness required), so it runs fine behi
 
 | Tool | Arguments | Returns |
 |------|-----------|---------|
-| `generate_diagram` | `description` | Complete `.drawio` (mxfile) document |
+| `generate_diagram` | `description` | Compact summary: diagram id + links (view/render). No inline XML - fetch it with `get_diagram_xml` if needed. |
 | `edit_diagram` | `change` + `diagram_id` (or `current_xml`) | New diagram id and links |
 | `get_diagram_xml` | `diagram_id` | The full `.drawio` XML |
 
@@ -58,7 +58,7 @@ For a vector SVG, open the diagram in the app (`/?d=<id>`) and use draw.io's own
 SVG export - it handles label bounds and namespaces correctly, which a naive DOM
 extraction does not.
 
-Ask the agent something like *"draw an AWS three-tier architecture with an ALB, an EC2 auto-scaling group and RDS Multi-AZ"*, then save the returned XML as a `.drawio` file and open it in draw.io.
+Ask the agent something like *"draw an AWS three-tier architecture with an ALB, an EC2 auto-scaling group and RDS Multi-AZ"*. The response gives you a link to open/edit it in the app, and another to render it for a screenshot.
 
 ## Option 2: HTTP API
 

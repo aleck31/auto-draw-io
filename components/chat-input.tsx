@@ -1,13 +1,13 @@
 "use client"
 
 import {
+    Brain,
     Download,
     History,
     Image as ImageIcon,
     Loader2,
     Send,
     Square,
-    Trash2,
 } from "lucide-react"
 import type React from "react"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -16,9 +16,15 @@ import { ButtonWithTooltip } from "@/components/button-with-tooltip"
 import { ErrorToast } from "@/components/error-toast"
 import { HistoryDialog } from "@/components/history-dialog"
 import { ModelSelector } from "@/components/model-selector"
-import { ResetWarningModal } from "@/components/reset-warning-modal"
 import { SaveDialog } from "@/components/save-dialog"
 import { Button } from "@/components/ui/button"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -147,7 +153,6 @@ interface ChatInputProps {
     status: "submitted" | "streaming" | "ready" | "error"
     onSubmit: (e: React.FormEvent<HTMLFormElement>) => void
     onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
-    onClearChat: () => void
     onStop?: () => void
     files?: File[]
     onFileChange?: (files: File[]) => void
@@ -167,6 +172,8 @@ interface ChatInputProps {
     onModelSelect?: (modelId: string | undefined) => void
     showUnvalidatedModels?: boolean
     serverModels?: string[]
+    reasoningEffort?: string
+    onReasoningEffortChange?: (value: string) => void
 }
 
 export function ChatInput({
@@ -174,7 +181,6 @@ export function ChatInput({
     status,
     onSubmit,
     onChange,
-    onClearChat,
     onStop,
     files = [],
     onFileChange = () => {},
@@ -190,6 +196,8 @@ export function ChatInput({
     onModelSelect = () => {},
     showUnvalidatedModels = false,
     serverModels = [],
+    reasoningEffort = "auto",
+    onReasoningEffortChange = () => {},
 }: ChatInputProps) {
     const dict = useDictionary()
     const {
@@ -202,7 +210,6 @@ export function ChatInput({
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [isDragging, setIsDragging] = useState(false)
-    const [showClearDialog, setShowClearDialog] = useState(false)
     // Allow retry when there's an error (even if status is still "streaming" or "submitted")
     const isDisabled =
         (status === "streaming" || status === "submitted") && !error
@@ -332,11 +339,6 @@ export function ChatInput({
         }
     }
 
-    const handleClear = () => {
-        onClearChat()
-        setShowClearDialog(false)
-    }
-
     return (
         <form
             onSubmit={onSubmit}
@@ -374,23 +376,6 @@ export function ChatInput({
 
                 <div className="flex items-center justify-between px-3 py-2 border-t border-border/50">
                     <div className="flex items-center gap-1 overflow-x-hidden">
-                        <ButtonWithTooltip
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowClearDialog(true)}
-                            tooltipContent={dict.chat.clearConversation}
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                        </ButtonWithTooltip>
-
-                        <ResetWarningModal
-                            open={showClearDialog}
-                            onOpenChange={setShowClearDialog}
-                            onClear={handleClear}
-                        />
-
                         <HistoryDialog
                             showHistory={showHistory}
                             onToggleHistory={onToggleHistory}
@@ -491,6 +476,44 @@ export function ChatInput({
                             showUnvalidatedModels={showUnvalidatedModels}
                             serverModels={serverModels}
                         />
+
+                        {/* Thinking effort: "auto" defers to the server default */}
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Select
+                                    value={reasoningEffort}
+                                    onValueChange={onReasoningEffortChange}
+                                    disabled={isDisabled}
+                                >
+                                    <SelectTrigger
+                                        aria-label="Thinking effort"
+                                        className="h-8 w-auto min-w-0 gap-1 rounded-xl border-0 px-2 text-xs text-muted-foreground shadow-none hover:bg-accent focus:ring-0"
+                                    >
+                                        <Brain className="h-4 w-4 flex-shrink-0" />
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="auto">
+                                            Auto
+                                        </SelectItem>
+                                        <SelectItem value="low">Low</SelectItem>
+                                        <SelectItem value="medium">
+                                            Medium
+                                        </SelectItem>
+                                        <SelectItem value="high">
+                                            High
+                                        </SelectItem>
+                                        <SelectItem value="xhigh">
+                                            Extra high
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                                Thinking effort — lower is faster, Auto follows
+                                the server default
+                            </TooltipContent>
+                        </Tooltip>
 
                         <div className="w-px h-5 bg-border mx-1" />
 
