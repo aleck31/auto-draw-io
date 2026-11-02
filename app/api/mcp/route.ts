@@ -1,5 +1,8 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
-import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js"
+import {
+    createMcpHandler,
+    McpServer,
+    type ServerContext,
+} from "@modelcontextprotocol/server"
 import { z } from "zod"
 import {
     checkAgentAccess,
@@ -26,8 +29,8 @@ export const maxDuration = 600
  *     }
  *   }
  *
- * Runs stateless (a fresh server + transport per request) so it works behind
- * load balancers and on serverless platforms without sticky sessions.
+ * Serves both 2025-era clients (stateless, a fresh server per request) and the
+ * 2026-07-28 revision, so it works behind load balancers without sticky sessions.
  */
 
 const DIAGRAM_HINT =
@@ -41,21 +44,18 @@ const DIAGRAM_HINT =
  * don't cut the request, and MCP clients reset their own timeouts on progress.
  */
 async function withProgress<T>(
-    extra: {
-        _meta?: { progressToken?: string | number }
-        sendNotification: (n: any) => Promise<void>
-    },
+    ctx: ServerContext,
     run: (onProgress: (message: string) => void) => Promise<T>,
 ): Promise<T> {
-    const progressToken = extra._meta?.progressToken
+    const progressToken = ctx.mcpReq._meta?.progressToken
     let counter = 0
 
     const notify = (message: string) => {
         if (progressToken === undefined) return
         counter += 1
         // Fire-and-forget: a failed heartbeat must not fail generation.
-        void extra
-            .sendNotification({
+        void ctx.mcpReq
+            .notify({
                 method: "notifications/progress",
                 params: { progressToken, progress: counter, message },
             })
@@ -125,16 +125,16 @@ function buildServer(): McpServer {
         {
             title: "Generate a draw.io diagram",
             description: `Generate a draw.io diagram (architecture diagram, flowchart, cloud design) from a natural-language description. Supports AWS/Azure/GCP/Kubernetes icon libraries. Returns a diagram id plus links: one to open/edit it in the browser, and a render-only page you can screenshot with a headless browser to get a PNG. Use get_diagram_xml if you need the XML itself. ${DIAGRAM_HINT}`,
-            inputSchema: {
+            inputSchema: z.object({
                 description: z
                     .string()
                     .describe(`What to draw. ${DIAGRAM_HINT}`),
-            },
+            }),
         },
-        async ({ description }, extra) => {
+        async ({ description }, ctx) => {
             try {
                 return toResult(
-                    await withProgress(extra, (onProgress) =>
+                    await withProgress(ctx, (onProgress) =>
                         generateDiagram({ prompt: description, onProgress }),
                     ),
                 )
@@ -151,7 +151,7 @@ function buildServer(): McpServer {
             title: "Edit an existing draw.io diagram",
             description:
                 "Modify an existing diagram. Identify it with diagram_id (from a previous generate/edit call) - or pass current_xml when the diagram came from elsewhere. Returns a new diagram id and link.",
-            inputSchema: {
+            inputSchema: z.object({
                 change: z
                     .string()
                     .describe(
@@ -167,9 +167,9 @@ function buildServer(): McpServer {
                     .describe(
                         "The diagram XML to modify; only needed when diagram_id is unavailable",
                     ),
-            },
+            }),
         },
-        async ({ change, diagram_id, current_xml }, extra) => {
+        async ({ change, diagram_id, current_xml }, ctx) => {
             let baseXml = current_xml
             if (!baseXml && diagram_id) {
                 const stored = getDiagram(diagram_id)
@@ -190,7 +190,7 @@ function buildServer(): McpServer {
 
             try {
                 return toResult(
-                    await withProgress(extra, (onProgress) =>
+                    await withProgress(ctx, (onProgress) =>
                         generateDiagram({
                             prompt: change,
                             currentXml: baseXml,
@@ -211,13 +211,13 @@ function buildServer(): McpServer {
             title: "Read a diagram's XML",
             description:
                 "Return the full draw.io XML for a diagram id. Use this only when you need the markup itself (to inspect structure or save a .drawio file) - editing can be done with edit_diagram by id.",
-            inputSchema: {
+            inputSchema: z.object({
                 diagram_id: z
                     .string()
                     .describe(
                         "Id returned by generate_diagram or edit_diagram",
                     ),
-            },
+            }),
         },
         async ({ diagram_id }) => {
             const xml = getDiagram(diagram_id)
@@ -242,6 +242,15 @@ function buildServer(): McpServer {
     return server
 }
 
+const mcpHandler = createMcpHandler(() => buildServer(), {
+    // Always stream: in "auto" mode a 2026-era response only upgrades to SSE
+    // (and starts keepalives) once the handler emits a message, so a client
+    // without a progressToken would get no bytes for minutes and hit idle
+    // timeouts on load balancers/CDNs.
+    responseMode: "sse",
+    onerror: (error) => console.error("[mcp] transport error:", error),
+})
+
 async function handle(req: Request): Promise<Response> {
     if (!checkAgentAccess(req)) {
         return Response.json(
@@ -250,18 +259,8 @@ async function handle(req: Request): Promise<Response> {
         )
     }
 
-    const server = buildServer()
-    // Stateless (no session id) so any replica can serve any request.
-    // SSE streaming (enableJsonResponse omitted) lets us emit progress
-    // notifications during multi-minute generations, which keeps idle
-    // timeouts on CDNs/load balancers from cutting the connection.
-    const transport = new WebStandardStreamableHTTPServerTransport({
-        sessionIdGenerator: undefined,
-    })
-
     try {
-        await server.connect(transport)
-        return await transport.handleRequest(req)
+        return await mcpHandler.fetch(req)
     } catch (error) {
         console.error("[mcp] transport error:", error)
         return Response.json({ error: "MCP request failed" }, { status: 500 })
