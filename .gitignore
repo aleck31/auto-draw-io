@@ -55,3 +55,7 @@ push-via-ec2.sh
 
 # draw.io copy fetched by scripts/fetch-drawio.mjs
 /public/drawio/
+
+# Playwright
+/test-results/
+/playwright-report/
