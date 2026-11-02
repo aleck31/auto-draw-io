@@ -269,7 +269,7 @@ async function handleChatRequest(req: Request): Promise<Response> {
     }
 
     // Get AI model with optional client overrides
-    const { model, providerOptions, headers, modelId } =
+    const { model, providerOptions, headers, modelId, reasoning } =
         getAIModel(clientOverrides)
 
     // Check if model supports prompt caching
@@ -603,7 +603,8 @@ ${userInputText}
         // are server-generated (trusted) and carry Bedrock cachePoint provider
         // options, so keep them in messages instead of the instructions option.
         allowSystemInMessages: true,
-        ...(providerOptions && { providerOptions }), // This now includes all reasoning configs
+        ...(providerOptions && { providerOptions }),
+        ...(reasoning && { reasoning }),
         ...(headers && { headers }),
         // Langfuse telemetry config (returns undefined if not configured)
         ...(getTelemetryConfig({ sessionId: validSessionId, userId }) && {
@@ -621,15 +622,11 @@ ${userInputText}
             // counted inside outputTokens - so a high `out` on a simple request
             // is the signal that the model spent its budget thinking.
             const usage = event?.totalUsage ?? event?.usage
-            const reasoning = usage?.outputTokenDetails?.reasoningTokens
+            const thinkingTokens = usage?.outputTokenDetails?.reasoningTokens
             console.log(
-                `[usage] model=${modelId} effort=${
-                    clientOverrides.reasoningEffort ||
-                    process.env.BEDROCK_REASONING_EFFORT ||
-                    "auto"
-                } in=${usage?.inputTokens ?? "?"} out=${
+                `[usage] model=${modelId} effort=${reasoning ?? "default"} in=${usage?.inputTokens ?? "?"} out=${
                     usage?.outputTokens ?? "?"
-                }${reasoning !== undefined ? ` thinking=${reasoning}` : ""} cacheRead=${
+                }${thinkingTokens !== undefined ? ` thinking=${thinkingTokens}` : ""} cacheRead=${
                     usage?.inputTokenDetails?.cacheReadTokens ?? 0
                 } total=${usage?.totalTokens ?? "?"} steps=${
                     event?.steps?.length ?? "?"

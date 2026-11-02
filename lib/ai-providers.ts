@@ -31,11 +31,15 @@ export function getServerModels(): string[] {
         .filter(Boolean)
 }
 
+export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max"
+
 interface ModelConfig {
     model: any
     providerOptions?: any
     headers?: Record<string, string>
     modelId: string
+    /** Portable AI SDK `reasoning` level; the provider maps it to its native config. */
+    reasoning?: ReasoningEffort
 }
 
 export interface ClientOverrides {
@@ -281,57 +285,28 @@ function buildProviderOptions(
                 1024,
                 64000,
             )
-            // A per-request override (from the UI) takes precedence over the
-            // server-wide BEDROCK_REASONING_EFFORT default.
-            //
-            // Default to "medium" rather than letting Bedrock apply its own
-            // default of "high": at "high" Claude almost always thinks, and
-            // because thinking tokens count against maxOutputTokens, a complex
-            // edit can spend the entire budget thinking and finish with reason
-            // "length" - i.e. minutes of thinking and no diagram. Measured on a
-            // whole-diagram restructure: high took 300s and was truncated,
-            // medium 148s, low ~100s, with comparable output size. "medium"
-            // keeps headroom for hard layout reasoning; users can raise or lower
-            // it per request in the UI.
-            const reasoningEffort =
-                reasoningEffortOverride || process.env.BEDROCK_REASONING_EFFORT
+            const reasoningEffort = bedrockReasoningEffort(
+                reasoningEffortOverride,
+            )
 
             // Bedrock reasoning config.
-            // - Claude 4.7+/5.x: adaptive thinking with a summarized (readable)
-            //   trace, ENABLED BY DEFAULT. "adaptive" lets the model scale
-            //   thinking to task difficulty, so simple edits stay cheap.
-            //   BEDROCK_REASONING_EFFORT (low|medium|high|xhigh|max) overrides
-            //   the "medium" default.
+            // - Claude 4.7+/5.x: adaptive thinking, enabled by default. The
+            //   effort is passed as the top-level `reasoning` option (see
+            //   getAIModel); here we only ask for a readable summarized trace.
             // - Claude <= 4.6: legacy thinking.type:"enabled", opt-in via
             //   BEDROCK_REASONING_BUDGET_TOKENS.
             // - Nova: type "enabled" + maxReasoningEffort, opt-in.
-            const claudeVer = modelId ? parseClaudeVersion(modelId) : null
             const isClaude =
                 !!modelId &&
                 (modelId.includes("claude") || modelId.includes("anthropic"))
             const isNova =
                 !!modelId &&
                 (modelId.includes("nova") || modelId.includes("amazon"))
-            const isNewClaude =
-                isClaude &&
-                !!claudeVer &&
-                (claudeVer.major > 4 ||
-                    (claudeVer.major === 4 && claudeVer.minor >= 7))
 
-            if (isNewClaude) {
-                // Default-on adaptive summarized thinking.
-                const reasoningConfig: Record<string, any> = {
-                    type: "adaptive",
-                    display: "summarized",
-                    // Always cap the effort (default "medium"); see note above.
-                    maxReasoningEffort: (reasoningEffort || "medium") as
-                        | "low"
-                        | "medium"
-                        | "high"
-                        | "xhigh"
-                        | "max",
+            if (modelId && isAdaptiveThinkingClaude(modelId)) {
+                options.bedrock = {
+                    reasoningConfig: { display: "summarized" },
                 }
-                options.bedrock = { reasoningConfig }
             } else if (
                 isClaude &&
                 budgetTokens &&
@@ -652,7 +627,13 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
         providerOptions = customProviderOptions
     }
 
-    return { model, providerOptions, headers, modelId }
+    const reasoning =
+        provider === "bedrock" && isAdaptiveThinkingClaude(modelId)
+            ? bedrockReasoningEffort(overrides?.reasoningEffort || undefined) ||
+              "medium"
+            : undefined
+
+    return { model, providerOptions, headers, modelId, reasoning }
 }
 
 /**
@@ -667,6 +648,39 @@ export function supportsPromptCaching(modelId: string): boolean {
         modelId.startsWith("us.anthropic") ||
         modelId.startsWith("eu.anthropic")
     )
+}
+
+/**
+ * Claude 4.7+/5.x, which use adaptive thinking (the model scales thinking to
+ * task difficulty) instead of a fixed token budget.
+ */
+export function isAdaptiveThinkingClaude(modelId: string): boolean {
+    const ver = parseClaudeVersion(modelId)
+    return !!ver && (ver.major > 4 || (ver.major === 4 && ver.minor >= 7))
+}
+
+const REASONING_EFFORTS: readonly ReasoningEffort[] = [
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+]
+
+/**
+ * Bedrock thinking effort: the per-request UI override, else
+ * BEDROCK_REASONING_EFFORT. Callers default adaptive Claude to "medium" rather
+ * than Bedrock's own "high": thinking tokens count against maxOutputTokens, and
+ * at "high" a whole-diagram restructure took 300s and finished with reason
+ * "length" (no diagram), versus 148s at medium and ~100s at low.
+ */
+function bedrockReasoningEffort(
+    override?: string,
+): ReasoningEffort | undefined {
+    const value = override || process.env.BEDROCK_REASONING_EFFORT
+    return REASONING_EFFORTS.includes(value as ReasoningEffort)
+        ? (value as ReasoningEffort)
+        : undefined
 }
 
 /**

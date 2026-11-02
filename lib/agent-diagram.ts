@@ -88,7 +88,8 @@ export async function generateDiagram({
 
     let capturedXml: string | null = null
 
-    const { model, providerOptions, headers, modelId } = getAIModel(overrides)
+    const { model, providerOptions, headers, modelId, reasoning } =
+        getAIModel(overrides)
 
     onProgress?.(`Generating diagram with ${modelId}`)
 
@@ -108,6 +109,7 @@ export async function generateDiagram({
                 temperature: parseFloat(process.env.TEMPERATURE),
             }),
         ...(providerOptions && { providerOptions }),
+        ...(reasoning && { reasoning }),
         ...(headers && { headers }),
         messages: [
             {
