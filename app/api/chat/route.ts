@@ -316,10 +316,14 @@ async function handleChatRequest(req: Request): Promise<Response> {
         []
 
     // User input only - XML is now in a separate cached system message
+    // The reply language is repeated next to the message: the diagram, files
+    // and context are often in another language than the user writes in
     const formattedUserInput = `User input:
 """md
 ${userInputText}
-"""`
+"""
+
+Write your reply in the language of the user's own words above, not in the language of the diagram, attached files or the canvas notes.`
 
     // Convert UIMessages to ModelMessages and add system message
     // Only the latest screenshot goes to the model as an image; the diagram
