@@ -369,14 +369,11 @@ export function ChatInput({
                 />
 
                 <div className="flex items-center justify-between px-3 py-2 border-t border-border/50">
-                    <div className="flex items-center gap-1 overflow-x-hidden">
+                    <div className="flex shrink-0 items-center gap-1">
                         <HistoryDialog
                             showHistory={showHistory}
                             onToggleHistory={onToggleHistory}
                         />
-                    </div>
-
-                    <div className="flex items-center gap-1 overflow-hidden justify-end">
                         <ButtonWithTooltip
                             type="button"
                             variant="ghost"
@@ -433,7 +430,9 @@ export function ChatInput({
                             multiple
                             disabled={isDisabled}
                         />
+                    </div>
 
+                    <div className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-hidden">
                         <ModelSelector
                             models={models}
                             selectedModelId={selectedModelId}
@@ -453,7 +452,7 @@ export function ChatInput({
                                 >
                                     <SelectTrigger
                                         aria-label="Thinking effort"
-                                        className="h-8 w-auto min-w-0 gap-1 rounded-xl border-0 px-2 text-xs text-muted-foreground shadow-none hover:bg-accent focus:ring-0"
+                                        className="h-8 w-auto shrink-0 gap-1 rounded-xl border-0 px-2 text-xs text-muted-foreground shadow-none hover:bg-accent focus:ring-0 [&>svg:last-child]:hidden"
                                     >
                                         <Brain className="h-4 w-4 flex-shrink-0" />
                                         <SelectValue />
@@ -481,25 +480,23 @@ export function ChatInput({
                             </TooltipContent>
                         </Tooltip>
 
-                        <div className="w-px h-5 bg-border mx-1" />
-
                         <Button
                             type={isDisabled ? "button" : "submit"}
                             onClick={isDisabled && onStop ? onStop : undefined}
                             disabled={isDisabled ? !onStop : !input.trim()}
                             size="sm"
-                            className="h-8 px-4 rounded-xl font-medium shadow-sm"
+                            className="h-8 w-10 shrink-0 p-0 rounded-xl shadow-sm"
                             aria-label={
+                                isDisabled ? dict.chat.sending : dict.chat.send
+                            }
+                            title={
                                 isDisabled ? dict.chat.sending : dict.chat.send
                             }
                         >
                             {isDisabled ? (
                                 <Square className="h-3.5 w-3.5 fill-current" />
                             ) : (
-                                <>
-                                    <Send className="h-4 w-4 mr-1.5" />
-                                    {dict.chat.send}
-                                </>
+                                <Send className="h-4 w-4" />
                             )}
                         </Button>
                     </div>
