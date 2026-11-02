@@ -32,6 +32,7 @@ import { useDictionary } from "@/hooks/use-dictionary"
 import { getSelectedAIConfig, useModelConfig } from "@/hooks/use-model-config"
 import { getApiEndpoint } from "@/lib/base-path"
 import { findCachedResponse } from "@/lib/cached-responses"
+import { listPages, pageModelXml } from "@/lib/diagram-pages"
 import { isPdfFile, isTextFile } from "@/lib/pdf-utils"
 import { type FileData, useFileProcessor } from "@/lib/use-file-processor"
 import { cn, formatXML } from "@/lib/utils"
@@ -709,6 +710,10 @@ export default function ChatPanel({
 
         const config = getSelectedAIConfig()
 
+        // The AI reads and writes the first page; it is told the others exist
+        const pages = listPages(xml)
+        const aiPage = (doc: string) => pageModelXml(doc, null) ?? doc
+
         // Determine if user selected a specific server model (not the default first one)
         const selectedId = modelConfig.selectedModelId
         const serverModelId = selectedId?.startsWith("__server__:")
@@ -719,8 +724,11 @@ export default function ChatPanel({
             { parts },
             {
                 body: {
-                    xml,
-                    previousXml,
+                    xml: aiPage(xml),
+                    previousXml: previousXml ? aiPage(previousXml) : "",
+                    ...(pages.length > 1 && {
+                        pages: pages.map((page) => page.name),
+                    }),
                     sessionId,
                     ...(serverModelId && { serverModelId }),
                     // Move sensitive data to request body for better security

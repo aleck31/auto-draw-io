@@ -6,6 +6,7 @@ import type { DrawIoEmbedRef } from "react-drawio"
 import { STORAGE_DIAGRAM_XML_KEY } from "@/components/chat-panel"
 import type { ExportFormat } from "@/components/save-dialog"
 import { getApiEndpoint } from "@/lib/base-path"
+import { uncompressPages, validateEachPage } from "@/lib/diagram-pages"
 import {
     extractDiagramXML,
     isRealDiagram,
@@ -170,7 +171,7 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
 
         // Validate XML structure before loading (unless skipped for internal use)
         if (!skipValidation) {
-            const validation = validateAndFixXml(chart)
+            const validation = validateEachPage(chart, validateAndFixXml)
             if (!validation.valid) {
                 console.warn(
                     "[loadDiagram] Validation error:",
@@ -216,10 +217,10 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         }
 
         const extractedXML = extractDiagramXML(data.data)
-        // NOTE: do NOT write chartXML here. extractDiagramXML only decodes the
-        // FIRST <diagram> page, so writing it would drop other pages. chartXML
-        // is kept current by loadDiagram (AI updates) and onAutoSave (which
-        // delivers the full multi-page document).
+        // The full document, every page uncompressed: extractDiagramXML
+        // decodes the FIRST page only. Not written to chartXML here; that is
+        // kept current by loadDiagram (AI updates) and onAutoSave.
+        const fullXML = data.xml ? uncompressPages(data.xml) : extractedXML
         setLatestSvg(data.data)
 
         // Only add to history if this was a user-initiated export
@@ -231,7 +232,7 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
                     ...prev,
                     {
                         svg: data.data,
-                        xml: extractedXML,
+                        xml: fullXML,
                     },
                 ]
                 // Keep only the last MAX_HISTORY_SIZE entries (circular buffer)
@@ -241,7 +242,7 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (resolverRef.current) {
-            resolverRef.current(extractedXML)
+            resolverRef.current(fullXML)
             resolverRef.current = null
         }
     }

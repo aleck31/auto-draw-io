@@ -28,6 +28,7 @@ import {
 } from "@/components/ai-elements/reasoning"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { getApiEndpoint } from "@/lib/base-path"
+import { validateEachPage } from "@/lib/diagram-pages"
 import {
     applyDiagramOperations,
     convertToLegalXml,
@@ -391,7 +392,10 @@ export function ChatMessageDisplay({
                     }
 
                     // Final output: run full validation and auto-fix
-                    const validation = validateAndFixXml(replacedXML)
+                    const validation = validateEachPage(
+                        replacedXML,
+                        validateAndFixXml,
+                    )
                     if (validation.valid) {
                         previousXML.current = convertedXml
                         // Use fixed XML if available, otherwise use original

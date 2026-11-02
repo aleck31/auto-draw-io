@@ -160,6 +160,7 @@ async function handleChatRequest(req: Request): Promise<Response> {
         aiConfig,
         tavilyApiKey,
         serverModelId,
+        pages,
     } = await req.json()
 
     // Check if user is using their own LLM provider
@@ -489,6 +490,23 @@ ${userInputText}
         }
     }
 
+    // Multi-page files: the client sends only the first page's XML plus the
+    // page names, so the model knows the other pages exist and stay as they are.
+    const pageNames: string[] = Array.isArray(pages)
+        ? pages
+              .filter((name: unknown) => typeof name === "string")
+              .slice(0, 50)
+              .map((name: string) => name.slice(0, 100))
+        : []
+    const pagesNote =
+        pageNames.length > 1
+            ? `This file has ${pageNames.length} pages: ${pageNames
+                  .map((name, i) => `${i + 1}. ${JSON.stringify(name)}`)
+                  .join(
+                      ", ",
+                  )}. The XML below is page 1 only, and your display_diagram, edit_diagram and append_diagram calls change page 1 only; the other pages are kept unchanged and you cannot see or edit them. If the user asks about another page, tell them you can only work on the first page for now.\n\n`
+            : ""
+
     // System messages with multiple cache breakpoints for optimal caching:
     // - Breakpoint 1: Static instructions (~1500 tokens) - rarely changes
     // - Breakpoint 2: Current XML context - changes per diagram, but constant within a conversation turn
@@ -508,7 +526,7 @@ ${userInputText}
         // Cache breakpoint 2: Previous and Current diagram XML context
         {
             role: "system" as const,
-            content: `${previousXml ? `Previous diagram XML (before user's last message):\n"""xml\n${previousXml}\n"""\n\n` : ""}Current diagram XML (AUTHORITATIVE - the source of truth):\n"""xml\n${xml || ""}\n"""\n\nIMPORTANT: The "Current diagram XML" is the SINGLE SOURCE OF TRUTH for what's on the canvas right now. The user can manually add, delete, or modify shapes directly in draw.io. Always count and describe elements based on the CURRENT XML, not on what you previously generated. If both previous and current XML are shown, compare them to understand what the user changed. When using edit_diagram, COPY search patterns exactly from the CURRENT XML - attribute order matters!`,
+            content: `${pagesNote}${previousXml ? `Previous diagram XML (before user's last message):\n"""xml\n${previousXml}\n"""\n\n` : ""}Current diagram XML (AUTHORITATIVE - the source of truth):\n"""xml\n${xml || ""}\n"""\n\nIMPORTANT: The "Current diagram XML" is the SINGLE SOURCE OF TRUTH for what's on the canvas right now. The user can manually add, delete, or modify shapes directly in draw.io. Always count and describe elements based on the CURRENT XML, not on what you previously generated. If both previous and current XML are shown, compare them to understand what the user changed. When using edit_diagram, COPY search patterns exactly from the CURRENT XML - attribute order matters!`,
             ...(shouldCache && {
                 providerOptions: {
                     bedrock: { cachePoint: { type: "default" } },

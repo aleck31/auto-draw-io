@@ -1,5 +1,10 @@
 import type { MutableRefObject } from "react"
-import { isMxCellXmlComplete, wrapWithMxFile } from "@/lib/utils"
+import { pageModelXml, placeOnPage } from "@/lib/diagram-pages"
+import {
+    isMxCellXmlComplete,
+    validateAndFixXml,
+    wrapWithMxFile,
+} from "@/lib/utils"
 
 const DEBUG = process.env.NODE_ENV === "development"
 
@@ -44,6 +49,23 @@ interface UseDiagramToolHandlersParams {
     onExport: () => void
     capturePng?: () => Promise<string>
     vlmValidationEnabled?: boolean
+}
+
+/**
+ * Validates the page the AI wrote on its own, then puts it on the first page
+ * of the canvas file so the other pages stay. Validating the whole file
+ * instead would treat ids repeated across pages as duplicates.
+ */
+function placeAiPage(
+    pageXml: string,
+    canvasXml: string,
+): { xml: string; error?: undefined } | { error: string } {
+    const validation = validateAndFixXml(pageXml)
+    if (!validation.valid) {
+        return { error: validation.error || "Invalid diagram XML" }
+    }
+    const page = validation.fixed || pageXml
+    return { xml: canvasXml ? placeOnPage(page, canvasXml, null) : page }
 }
 
 /**
@@ -136,8 +158,10 @@ NEXT STEP: Call append_diagram with the continuation XML.
         // Wrap raw XML with full mxfile structure for draw.io
         const fullXml = wrapWithMxFile(finalXml)
 
-        // loadDiagram validates and returns error if invalid
-        const validationError = onDisplayChart(fullXml)
+        // Validate the drawn page, then load it as page 1 of the canvas file
+        const placed = placeAiPage(fullXml, chartXMLRef.current)
+        const validationError =
+            placed.error ?? onDisplayChart(placed.xml as string, true)
 
         if (validationError) {
             console.warn("[display_diagram] Validation error:", validationError)
@@ -240,6 +264,9 @@ ${finalXml}
                 }
             }
 
+            // What the model sees in error messages: the page it edits
+            const currentPageXml = pageModelXml(currentXml, null) ?? currentXml
+
             const { applyDiagramOperations } = await import("@/lib/utils")
             const { result: editedXml, errors } = applyDiagramOperations(
                 currentXml,
@@ -263,7 +290,7 @@ ${finalXml}
 
 Current diagram XML:
 \`\`\`xml
-${currentXml}
+${currentPageXml}
 \`\`\`
 
 Please check the cell IDs and retry.`,
@@ -273,8 +300,14 @@ Please check the cell IDs and retry.`,
                 return
             }
 
-            // loadDiagram validates and returns error if invalid
-            const validationError = onDisplayChart(editedXml)
+            // Operations change the first page; validate it alone and put it
+            // back so the other pages stay
+            const placed = placeAiPage(
+                pageModelXml(editedXml, null) ?? editedXml,
+                chartXMLRef.current || currentXml,
+            )
+            const validationError =
+                placed.error ?? onDisplayChart(placed.xml as string, true)
             if (validationError) {
                 console.warn(
                     "[edit_diagram] Validation error:",
@@ -288,7 +321,7 @@ Please check the cell IDs and retry.`,
 
 Current diagram XML:
 \`\`\`xml
-${currentXml}
+${currentPageXml}
 \`\`\`
 
 Please fix the operations to avoid structural issues.`,
@@ -374,7 +407,9 @@ Start your continuation with the NEXT character after where it stopped.`,
             partialXmlRef.current = "" // Reset
 
             const fullXml = wrapWithMxFile(finalXml)
-            const validationError = onDisplayChart(fullXml)
+            const placed = placeAiPage(fullXml, chartXMLRef.current)
+            const validationError =
+                placed.error ?? onDisplayChart(placed.xml as string, true)
 
             if (validationError) {
                 addToolOutput({
