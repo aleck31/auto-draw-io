@@ -40,7 +40,7 @@ COPY --from=drawio /app/public/drawio ./public/drawio
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build-time settings, inlined into the app by next.config.ts.
-# EMBED_DRAWIO_BASE_URL: self-hosted draw.io; empty uses embed.diagrams.net.
+# EMBED_DRAWIO_BASE_URL: an external draw.io; empty uses the bundled copy.
 # AUTO_BASE_PATH: subdirectory deployment, e.g. /nextaidrawio.
 ARG EMBED_DRAWIO_BASE_URL=
 ENV EMBED_DRAWIO_BASE_URL=${EMBED_DRAWIO_BASE_URL}

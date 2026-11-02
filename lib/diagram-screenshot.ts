@@ -20,7 +20,8 @@ export const SCREENSHOT_CHECKLIST = `Check this rendering of the diagram for:
 4. Layout problems: cramped shapes, poor spacing or misalignment (warning)
 5. Rendering errors: missing, incomplete or broken elements, such as an icon that did not load (critical)
 6. Labels on top of lines or shape borders, arrowheads ending on text or icons, edges crossing other edges (warning)
-Name the elements that have a problem, for example "the 'Login' box overlaps 'Register'". If there are critical issues, fix them with edit_diagram (screenshot: true) and check again; fix the warnings in the same round when you can. Do at most two rounds of fixes. Diagrams with only 1 or 2 shapes pass unless something is clearly broken. Do not tell the user the check passed while problems remain: name the ones you left.`
+Name the elements that have a problem, for example "the 'Login' box overlaps 'Register'". If there are critical issues, fix them with edit_diagram (screenshot: true) and check again; fix the warnings in the same round when you can. Do at most two rounds of fixes. Diagrams with only 1 or 2 shapes pass unless something is clearly broken. Do not tell the user the check passed while problems remain: name the ones you left.
+Reply to the user in the language they write in (their latest message), not the language of this checklist.`
 
 const OMITTED_NOTE =
     "[Screenshot omitted: only the latest screenshot is kept in the conversation.]"

@@ -51,8 +51,7 @@ const el = await page.waitForSelector(".mxgraph svg, svg")
 await el.screenshot({ path: "diagram.png" })
 ```
 
-The viewer script for that page is loaded from `EMBED_DRAWIO_BASE_URL`, so
-self-hosted and offline deployments work without reaching diagrams.net.
+The viewer script for that page comes from the draw.io bundled with the app (or from `EMBED_DRAWIO_BASE_URL` when an external draw.io is configured), so no deployment needs to reach diagrams.net.
 
 For a vector SVG, open the diagram in the app (`/?d=<id>`) and use draw.io's own
 SVG export - it handles label bounds and namespaces correctly, which a naive DOM

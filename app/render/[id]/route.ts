@@ -1,4 +1,5 @@
 import { getDiagram } from "@/lib/diagram-store"
+import drawioVersion from "@/scripts/drawio-version.json"
 
 export const runtime = "nodejs"
 
@@ -9,8 +10,9 @@ export const runtime = "nodejs"
  *  - agents with a headless browser: open the URL and screenshot to get a PNG
  *  - humans who only want to look at the diagram
  *
- * The draw.io viewer script is loaded from EMBED_DRAWIO_BASE_URL, so
- * self-hosted/offline deployments work without reaching diagrams.net.
+ * The draw.io viewer script comes from the bundled draw.io on this origin,
+ * or from EMBED_DRAWIO_BASE_URL when an external draw.io is configured, so no
+ * deployment needs to reach diagrams.net.
  */
 
 function escapeAttribute(value: string): string {
@@ -38,12 +40,13 @@ export async function GET(
         )
     }
 
-    const viewerBase = (
-        process.env.EMBED_DRAWIO_BASE_URL || "https://viewer.diagrams.net"
-    ).replace(/\/$/, "")
-    const viewerScript = `${
-        viewerBase.startsWith("http") ? viewerBase : `https://${viewerBase}`
-    }/js/viewer-static.min.js`
+    const external = (process.env.EMBED_DRAWIO_BASE_URL || "").replace(
+        /\/$/,
+        "",
+    )
+    const viewerScript = external
+        ? `${external.startsWith("http") ? external : `https://${external}`}/js/viewer-static.min.js`
+        : `${process.env.AUTO_BASE_PATH || ""}/drawio/${drawioVersion.version}/js/viewer-static.min.js`
 
     const config = escapeAttribute(
         JSON.stringify({

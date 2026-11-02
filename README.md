@@ -102,7 +102,7 @@ docker run -d -p 3000:3000 --env-file .env auto-draw-io
 
 访问 [http://localhost:3000](http://localhost:3000) 开始使用。
 
-> **离线部署：** 如果 `embed.diagrams.net` 被屏蔽，请参阅 [离线部署指南](./docs/offline-deployment.md)。
+> **draw.io：** 应用自带固定版本的 draw.io，从本站加载，不依赖 `embed.diagrams.net`，内网和离线环境可直接使用。构建时需从 GitHub 下载一次 draw.io，离线构建和使用外部 draw.io 的方法见 [draw.io 部署说明](./docs/offline-deployment.md)。
 
 ### 💻 本地开发
 
