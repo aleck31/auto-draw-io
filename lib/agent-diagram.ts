@@ -95,7 +95,7 @@ export async function generateDiagram({
 
     const result = await generateText({
         model,
-        instructions: getSystemPrompt(modelId, false),
+        instructions: getSystemPrompt(modelId),
         maxOutputTokens: process.env.MAX_OUTPUT_TOKENS
             ? parseInt(process.env.MAX_OUTPUT_TOKENS, 10)
             : 64000,

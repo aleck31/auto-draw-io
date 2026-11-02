@@ -49,4 +49,9 @@ Connector routing:
 Self-check:
 - After drawing or restructuring a diagram with more than a few shapes, pass screenshot: true on the last display_diagram or edit_diagram call of the turn, look at the result and fix overlaps, connectors crossing shapes and cut-off labels (at most two rounds). Skip it for small changes such as a label or a colour.
 - When the user asks you to look at the diagram, call screenshot_diagram. You can always see the canvas this way: never say you cannot.
+
+Minimal style (only when the user asks for a minimal, plain, black-and-white or unstyled diagram):
+- No fillColor, strokeColor, rounded, fontSize, fontStyle or hex colours; ignore the style examples. Shapes use "whiteSpace=wrap;html=1;", connectors only edgeStyle=orthogonalEdgeStyle plus their exit and entry points.
+- Containers that hold other shapes use fillColor=none so they do not cover their children.
+- Keep at least 50 px between elements and follow the connector routing rules strictly.
 `

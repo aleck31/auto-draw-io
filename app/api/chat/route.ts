@@ -286,9 +286,6 @@ async function handleChatRequest(req: Request): Promise<Response> {
         clientOverrides.modelId = serverModelId
     }
 
-    // Read minimal style preference from header
-    const minimalStyle = req.headers.get("x-minimal-style") === "true"
-
     // Per-request thinking effort override from the UI. Validated against the
     // allowed set so a bad header can't be forwarded to the provider.
     const REASONING_EFFORTS = ["low", "medium", "high", "xhigh", "max"]
@@ -308,7 +305,7 @@ async function handleChatRequest(req: Request): Promise<Response> {
     )
 
     // Get the appropriate system prompt based on model (extended for Opus/Haiku 4.5)
-    const systemMessage = getSystemPrompt(modelId, minimalStyle)
+    const systemMessage = getSystemPrompt(modelId)
 
     // Extract file parts (images) from the last user message
     const fileParts =

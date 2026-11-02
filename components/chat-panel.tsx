@@ -177,7 +177,6 @@ export default function ChatPanel({
     const modelConfig = useModelConfig()
     const [input, setInput] = useState("")
     const [showNewChatDialog, setShowNewChatDialog] = useState(false)
-    const [minimalStyle, setMinimalStyle] = useState(false)
     const [serverModels, setServerModels] = useState<string[]>([])
     // "auto" defers to the server's BEDROCK_REASONING_EFFORT default.
     const [reasoningEffort, setReasoningEffort] = useState(() => {
@@ -835,9 +834,6 @@ export default function ChatPanel({
                 },
                 headers: {
                     "x-access-code": config.accessCode,
-                    ...(minimalStyle && {
-                        "x-minimal-style": "true",
-                    }),
                     ...(reasoningEffort !== "auto" && {
                         "x-reasoning-effort": reasoningEffort,
                     }),
@@ -1136,8 +1132,6 @@ export default function ChatPanel({
                     onToggleHistory={setShowHistory}
                     sessionId={sessionId}
                     error={error}
-                    minimalStyle={minimalStyle}
-                    onMinimalStyleChange={setMinimalStyle}
                     models={modelConfig.models}
                     selectedModelId={modelConfig.selectedModelId}
                     onModelSelect={modelConfig.setSelectedModelId}

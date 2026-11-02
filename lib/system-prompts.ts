@@ -119,37 +119,12 @@ Connector (edge) example:
 \`\`\`
 ${DRAWING_GUIDE}`
 
-// Style instructions - only included when minimalStyle is false
+// Style instructions
 const STYLE_INSTRUCTIONS = `
 Common styles:
 - Shapes: rounded=1 (rounded corners), fillColor=#hex, strokeColor=#hex
 - Edges: endArrow=classic/block/open/none, startArrow=none/classic, curved=1, edgeStyle=orthogonalEdgeStyle
 - Text: fontSize=14, fontStyle=1 (bold), align=center/left/right
-`
-
-// Minimal style instruction - skip styling and focus on layout (prepended to prompt for emphasis)
-const MINIMAL_STYLE_INSTRUCTION = `
-## ⚠️ MINIMAL STYLE MODE ACTIVE ⚠️
-
-### No Styling - Plain Black/White Only
-- NO fillColor, NO strokeColor, NO rounded, NO fontSize, NO fontStyle
-- NO color attributes (no hex colors like #ff69b4)
-- Style: "whiteSpace=wrap;html=1;" for shapes, "html=1;endArrow=classic;" for edges
-- IGNORE all color/style examples below
-
-### Container/Group Shapes - MUST be Transparent
-- For container shapes (boxes that contain other shapes): use "fillColor=none;" to make background transparent
-- This prevents containers from covering child elements
-- Example: style="whiteSpace=wrap;html=1;fillColor=none;" for container rectangles
-
-### Focus on Layout Quality
-Since we skip styling, STRICTLY follow the "Connector routing" rules of the drawing guide below:
-- SPACING: Minimum 50px gap between all elements
-- NO OVERLAPS: Elements and edges must never overlap
-- Follow ALL connector routing rules for arrow positioning
-- Use waypoints to route edges AROUND obstacles
-- Use different exitY/entryY values for multiple edges between same nodes
-
 `
 
 // Extended additions (~2600 tokens) - appended for models with 4000 token cache minimum
@@ -295,16 +270,12 @@ const EXTENDED_PROMPT_MODEL_PATTERNS = [
 ]
 
 /**
- * Get the appropriate system prompt based on the model ID and style preference
+ * Get the system prompt for a model
  * Uses extended prompt for Opus 4.5 and Haiku 4.5 which have 4000 token cache minimum
  * @param modelId - The AI model ID from environment
- * @param minimalStyle - If true, removes style instructions to save tokens
  * @returns The system prompt string
  */
-export function getSystemPrompt(
-    modelId?: string,
-    minimalStyle?: boolean,
-): string {
+export function getSystemPrompt(modelId?: string): string {
     const modelName = modelId || "AI"
 
     let prompt: string
@@ -325,15 +296,7 @@ export function getSystemPrompt(
         prompt = DEFAULT_SYSTEM_PROMPT
     }
 
-    // Add style instructions based on preference
-    // Minimal style: prepend instruction at START (more prominent)
-    // Normal style: append at end
-    if (minimalStyle) {
-        console.log(`[System Prompt] Minimal style mode ENABLED`)
-        prompt = MINIMAL_STYLE_INSTRUCTION + prompt
-    } else {
-        prompt += STYLE_INSTRUCTIONS
-    }
+    prompt += STYLE_INSTRUCTIONS
 
     return prompt.replace("{{MODEL_NAME}}", modelName)
 }

@@ -24,7 +24,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import {
     Tooltip,
@@ -163,8 +162,6 @@ interface ChatInputProps {
     onToggleHistory?: (show: boolean) => void
     sessionId?: string
     error?: Error | null
-    minimalStyle?: boolean
-    onMinimalStyleChange?: (value: boolean) => void
     // Model selector props
     models?: FlattenedModel[]
     selectedModelId?: string
@@ -188,8 +185,6 @@ export function ChatInput({
     onToggleHistory = () => {},
     sessionId,
     error = null,
-    minimalStyle = false,
-    onMinimalStyleChange = () => {},
     models = [],
     selectedModelId,
     onModelSelect = () => {},
@@ -379,34 +374,6 @@ export function ChatInput({
                             showHistory={showHistory}
                             onToggleHistory={onToggleHistory}
                         />
-
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <div className="flex items-center gap-1.5">
-                                    <Switch
-                                        id="minimal-style"
-                                        checked={minimalStyle}
-                                        onCheckedChange={onMinimalStyleChange}
-                                        className="scale-75"
-                                    />
-                                    <label
-                                        htmlFor="minimal-style"
-                                        className={`text-xs cursor-pointer select-none ${
-                                            minimalStyle
-                                                ? "text-primary font-medium"
-                                                : "text-muted-foreground"
-                                        }`}
-                                    >
-                                        {minimalStyle
-                                            ? dict.chat.minimalStyle
-                                            : dict.chat.styledMode}
-                                    </label>
-                                </div>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                                {dict.chat.minimalTooltip}
-                            </TooltipContent>
-                        </Tooltip>
                     </div>
 
                     <div className="flex items-center gap-1 overflow-hidden justify-end">
