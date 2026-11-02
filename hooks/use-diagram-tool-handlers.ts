@@ -2,6 +2,10 @@ import type { MutableRefObject } from "react"
 import type { LoadOptions } from "@/contexts/diagram-context"
 import { pageModelXml, placeOnPage } from "@/lib/diagram-pages"
 import {
+    type ScreenshotOutput,
+    shrinkScreenshot,
+} from "@/lib/diagram-screenshot"
+import {
     isMxCellXmlComplete,
     validateAndFixXml,
     wrapWithMxFile,
@@ -19,7 +23,7 @@ type AddToolOutputSuccess = {
     tool: string
     toolCallId: string
     state?: "output-available"
-    output: string
+    output: string | ScreenshotOutput
     errorText?: undefined
 }
 
@@ -55,7 +59,8 @@ interface UseDiagramToolHandlersParams {
     onFetchChart: (saveToHistory?: boolean) => Promise<string>
     onExport: () => void
     capturePng?: () => Promise<string>
-    vlmValidationEnabled?: boolean
+    /** A screenshot was attached to a tool result: the model should see it */
+    onScreenshotAttached?: () => void
 }
 
 /**
@@ -91,8 +96,31 @@ export function useDiagramToolHandlers({
     onFetchChart,
     onExport,
     capturePng,
-    vlmValidationEnabled,
+    onScreenshotAttached,
 }: UseDiagramToolHandlersParams) {
+    /**
+     * The result message, with a PNG of the canvas when the model asked for
+     * one; a failed capture becomes a note, never a failed tool call
+     */
+    const withScreenshot = async (
+        message: string,
+        wanted: boolean | undefined,
+    ): Promise<string | ScreenshotOutput> => {
+        if (!wanted) return message
+        if (!capturePng) return `${message}\nScreenshot skipped: not available.`
+        try {
+            // Let images (icons) in the new cells finish loading
+            await new Promise((r) => setTimeout(r, 600))
+            const image = await shrinkScreenshot(await capturePng())
+            onScreenshotAttached?.()
+            return { message, image }
+        } catch (error) {
+            const reason =
+                error instanceof Error ? error.message : String(error)
+            return `${message}\nScreenshot skipped: ${reason}.`
+        }
+    }
+
     const handleToolCall = async (
         { toolCall }: { toolCall: ToolCall },
         addToolOutput: AddToolOutputFn,
@@ -108,15 +136,57 @@ export function useDiagramToolHandlers({
         } else if (toolCall.toolName === "edit_diagram") {
             await handleEditDiagram(toolCall, addToolOutput)
         } else if (toolCall.toolName === "append_diagram") {
-            handleAppendDiagram(toolCall, addToolOutput)
+            await handleAppendDiagram(toolCall, addToolOutput)
+        } else if (toolCall.toolName === "screenshot_diagram") {
+            await handleScreenshotDiagram(toolCall, addToolOutput)
         }
+    }
+
+    const handleScreenshotDiagram = async (
+        toolCall: ToolCall,
+        addToolOutput: AddToolOutputFn,
+    ) => {
+        const xml = chartXMLRef.current
+        if (!xml || !/<mxCell\b[^>]*\b(vertex|edge)="1"/.test(xml)) {
+            addToolOutput({
+                tool: "screenshot_diagram",
+                toolCallId: toolCall.toolCallId,
+                state: "output-error",
+                errorText: "The canvas is empty: there is nothing to look at.",
+            })
+            return
+        }
+        const output = await withScreenshot(
+            "Screenshot of the page on screen.",
+            true,
+        )
+        if (typeof output === "string") {
+            addToolOutput({
+                tool: "screenshot_diagram",
+                toolCallId: toolCall.toolCallId,
+                state: "output-error",
+                errorText: output.replace(
+                    /^Screenshot of the page on screen\.\n/,
+                    "",
+                ),
+            })
+            return
+        }
+        addToolOutput({
+            tool: "screenshot_diagram",
+            toolCallId: toolCall.toolCallId,
+            output,
+        })
     }
 
     const handleDisplayDiagram = async (
         toolCall: ToolCall,
         addToolOutput: AddToolOutputFn,
     ) => {
-        const { xml } = toolCall.input as { xml: string }
+        const { xml, screenshot } = toolCall.input as {
+            xml: string
+            screenshot?: boolean
+        }
 
         // DEBUG: Log raw input to diagnose false truncation detection
         if (DEBUG) {
@@ -205,42 +275,13 @@ ${finalXml}
                     "[display_diagram] Success! Adding tool output with state: output-available",
                 )
             }
-            // VLM validation: capture PNG and validate before returning success
-            if (vlmValidationEnabled && capturePng) {
-                try {
-                    // Wait for render to complete
-                    await new Promise((r) => setTimeout(r, 500))
-                    const pngData = await capturePng()
-                    const res = await fetch("/api/validate-diagram", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ imageData: pngData }),
-                    })
-                    if (res.ok) {
-                        const result = await res.json()
-                        if (!result.valid && result.suggestions?.length) {
-                            console.log(
-                                "[VLM Validation] Issues found:",
-                                result.issues,
-                            )
-                            addToolOutput({
-                                tool: "display_diagram",
-                                toolCallId: toolCall.toolCallId,
-                                state: "output-error",
-                                errorText: `Diagram displayed but VLM validation found issues:\n${result.issues.map((i: { severity: string; description: string }) => `- [${i.severity}] ${i.description}`).join("\n")}\n\nSuggestions:\n${result.suggestions.join("\n")}\n\nPlease fix these issues and call display_diagram again.`,
-                            })
-                            return
-                        }
-                    }
-                } catch (err) {
-                    console.warn("[VLM Validation] Failed:", err)
-                }
-            }
-
             addToolOutput({
                 tool: "display_diagram",
                 toolCallId: toolCall.toolCallId,
-                output: "Successfully displayed the diagram.",
+                output: await withScreenshot(
+                    "Successfully displayed the diagram.",
+                    screenshot,
+                ),
             })
             if (DEBUG) {
                 console.log(
@@ -254,8 +295,9 @@ ${finalXml}
         toolCall: ToolCall,
         addToolOutput: AddToolOutputFn,
     ) => {
-        const { operations } = toolCall.input as {
+        const { operations, screenshot } = toolCall.input as {
             operations: DiagramOperation[]
+            screenshot?: boolean
         }
 
         let currentXml = ""
@@ -355,7 +397,10 @@ Please fix the operations to avoid structural issues.`,
             addToolOutput({
                 tool: "edit_diagram",
                 toolCallId: toolCall.toolCallId,
-                output: `Successfully applied ${operations.length} operation(s) to the diagram.`,
+                output: await withScreenshot(
+                    `Successfully applied ${operations.length} operation(s) to the diagram.`,
+                    screenshot,
+                ),
             })
             // Clean up the shared original XML ref
             editDiagramOriginalXmlRef.current.delete(toolCall.toolCallId)
@@ -384,11 +429,14 @@ Please check cell IDs and retry, or use display_diagram to regenerate.`,
         }
     }
 
-    const handleAppendDiagram = (
+    const handleAppendDiagram = async (
         toolCall: ToolCall,
         addToolOutput: AddToolOutputFn,
     ) => {
-        const { xml } = toolCall.input as { xml: string }
+        const { xml, screenshot } = toolCall.input as {
+            xml: string
+            screenshot?: boolean
+        }
 
         // Detect if LLM incorrectly started fresh instead of continuing
         // LLM should only output bare mxCells now, so wrapper tags indicate error
@@ -455,7 +503,10 @@ Please use display_diagram with corrected XML.`,
                 addToolOutput({
                     tool: "append_diagram",
                     toolCallId: toolCall.toolCallId,
-                    output: "Diagram assembly complete and displayed successfully.",
+                    output: await withScreenshot(
+                        "Diagram assembly complete and displayed successfully.",
+                        screenshot,
+                    ),
                 })
             }
         } else {

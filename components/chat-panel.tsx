@@ -32,6 +32,7 @@ import { getSelectedAIConfig, useModelConfig } from "@/hooks/use-model-config"
 import { getApiEndpoint } from "@/lib/base-path"
 import { findCachedResponse } from "@/lib/cached-responses"
 import { listPages, pageModelXml } from "@/lib/diagram-pages"
+import { keepLatestScreenshot } from "@/lib/diagram-screenshot"
 import { isPdfFile, isTextFile } from "@/lib/pdf-utils"
 import { type FileData, useFileProcessor } from "@/lib/use-file-processor"
 import { cn, formatXML } from "@/lib/utils"
@@ -83,6 +84,19 @@ const MAX_CONTINUATION_RETRY_COUNT = 2 // Limit for truncation continuation retr
  * Check if auto-resubmit should happen based on tool errors.
  * Only checks the LAST tool part (most recent tool call), not all tool parts.
  */
+/** What the model gets of the canvas: page 1, plus the page names of a multi-page file */
+function aiCanvasContext(xml: string): { xml: string; pages?: string[] } {
+    const pages = listPages(xml)
+    return {
+        xml: pageModelXml(xml, null) ?? xml,
+        ...(pages.length > 1 && { pages: pages.map((page) => page.name) }),
+    }
+}
+
+// Rounds in one user turn where the model looks at a screenshot and fixes
+// the diagram; the screenshot checklist asks for at most two
+const MAX_SCREENSHOT_ROUNDS = 3
+
 function hasToolErrors(messages: ChatMessage[]): boolean {
     const lastMessage = messages[messages.length - 1]
     if (!lastMessage || lastMessage.role !== "assistant") {
@@ -164,10 +178,6 @@ export default function ChatPanel({
     const [input, setInput] = useState("")
     const [showNewChatDialog, setShowNewChatDialog] = useState(false)
     const [minimalStyle, setMinimalStyle] = useState(false)
-    const [vlmValidation, setVlmValidation] = useState(() => {
-        if (typeof window === "undefined") return false
-        return localStorage.getItem("auto-draw-io-vlm-validation") === "true"
-    })
     const [serverModels, setServerModels] = useState<string[]>([])
     // "auto" defers to the server's BEDROCK_REASONING_EFFORT default.
     const [reasoningEffort, setReasoningEffort] = useState(() => {
@@ -251,6 +261,10 @@ export default function ChatPanel({
     const LOCAL_STORAGE_DEBOUNCE_MS = 1000 // Save at most once per second
 
     // Diagram tool handlers (display_diagram, edit_diagram, append_diagram)
+    // A tool result carries a screenshot the model hasn't looked at yet
+    const screenshotPendingRef = useRef(false)
+    const screenshotRoundsRef = useRef(0)
+
     const { handleToolCall } = useDiagramToolHandlers({
         partialXmlRef,
         editDiagramOriginalXmlRef,
@@ -260,7 +274,9 @@ export default function ChatPanel({
         onFetchChart,
         onExport,
         capturePng,
-        vlmValidationEnabled: vlmValidation,
+        onScreenshotAttached: () => {
+            screenshotPendingRef.current = true
+        },
     })
 
     const {
@@ -274,6 +290,28 @@ export default function ChatPanel({
     } = useChat({
         transport: new DefaultChatTransport({
             api: getApiEndpoint("/api/chat"),
+            // Every request, automatic ones (tool results, retries,
+            // screenshot reviews) included: the canvas as it is now, and
+            // only the latest screenshot
+            prepareSendMessagesRequest: ({
+                id,
+                messages,
+                body,
+                trigger,
+                messageId,
+            }) => {
+                const xml = chartXMLRef.current
+                return {
+                    body: {
+                        ...body,
+                        ...(xml && aiCanvasContext(xml)),
+                        id,
+                        messages: keepLatestScreenshot(messages),
+                        trigger,
+                        messageId,
+                    },
+                }
+            },
         }),
         onToolCall: async ({ toolCall }) => {
             await handleToolCall({ toolCall }, addToolOutput)
@@ -368,6 +406,16 @@ export default function ChatPanel({
                 autoRetryCountRef.current = 0
                 continuationRetryCountRef.current = 0
                 partialXmlRef.current = ""
+                // A screenshot came back: let the model look at it and fix
+                if (
+                    screenshotPendingRef.current &&
+                    screenshotRoundsRef.current < MAX_SCREENSHOT_ROUNDS
+                ) {
+                    screenshotPendingRef.current = false
+                    screenshotRoundsRef.current++
+                    return true
+                }
+                screenshotPendingRef.current = false
                 return false
             }
 
@@ -478,7 +526,7 @@ export default function ChatPanel({
             try {
                 localStorage.setItem(
                     STORAGE_MESSAGES_KEY,
-                    JSON.stringify(messages),
+                    JSON.stringify(keepLatestScreenshot(messages)),
                 )
             } catch (error) {
                 console.error("Failed to save messages to localStorage:", error)
@@ -526,7 +574,7 @@ export default function ChatPanel({
             try {
                 localStorage.setItem(
                     STORAGE_MESSAGES_KEY,
-                    JSON.stringify(messagesRef.current),
+                    JSON.stringify(keepLatestScreenshot(messagesRef.current)),
                 )
                 localStorage.setItem(
                     STORAGE_XML_SNAPSHOTS_KEY,
@@ -728,12 +776,10 @@ export default function ChatPanel({
         autoRetryCountRef.current = 0
         continuationRetryCountRef.current = 0
         partialXmlRef.current = ""
+        screenshotPendingRef.current = false
+        screenshotRoundsRef.current = 0
 
         const config = getSelectedAIConfig()
-
-        // The AI reads and writes the first page; it is told the others exist
-        const pages = listPages(xml)
-        const aiPage = (doc: string) => pageModelXml(doc, null) ?? doc
 
         // Determine if user selected a specific server model (not the default first one)
         const selectedId = modelConfig.selectedModelId
@@ -745,11 +791,12 @@ export default function ChatPanel({
             { parts },
             {
                 body: {
-                    xml: aiPage(xml),
-                    previousXml: previousXml ? aiPage(previousXml) : "",
-                    ...(pages.length > 1 && {
-                        pages: pages.map((page) => page.name),
-                    }),
+                    // The AI reads and writes the first page; it is told the
+                    // others exist
+                    ...aiCanvasContext(xml),
+                    previousXml: previousXml
+                        ? aiCanvasContext(previousXml).xml
+                        : "",
                     sessionId,
                     ...(serverModelId && { serverModelId }),
                     // Move sensitive data to request body for better security
@@ -1112,14 +1159,6 @@ export default function ChatPanel({
                 onToggleDrawioUi={onToggleDrawioUi}
                 darkMode={darkMode}
                 onToggleDarkMode={onToggleDarkMode}
-                vlmValidation={vlmValidation}
-                onVlmValidationChange={(v) => {
-                    setVlmValidation(v)
-                    localStorage.setItem(
-                        "auto-draw-io-vlm-validation",
-                        String(v),
-                    )
-                }}
             />
 
             <ModelConfigDialog

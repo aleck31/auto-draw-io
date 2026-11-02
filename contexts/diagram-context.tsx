@@ -326,12 +326,18 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
     }, [])
 
     const handleDiagramExport = (data: any) => {
-        // Handle save to file if requested (process raw data before extraction)
-        if (saveResolverRef.current.resolver) {
-            const format = saveResolverRef.current.format
+        // Handle save to file if requested (process raw data before extraction).
+        // A PNG capture only takes a PNG export: an xmlsvg export asked for
+        // just before (the history snapshot after an AI edit) can land first.
+        const pending = saveResolverRef.current
+        if (
+            pending.resolver &&
+            !(pending.format === "png" && data.format !== "png")
+        ) {
+            const format = pending.format
             // Pass data.xml (full uncompressed multi-page document) so .drawio
             // saves preserve every page, not just the first.
-            saveResolverRef.current.resolver(data.data, data.xml)
+            pending.resolver(data.data, data.xml)
             saveResolverRef.current = { resolver: null, format: null }
             // For non-xmlsvg formats, skip XML extraction as it will fail
             // Only drawio (which uses xmlsvg internally) has the content attribute

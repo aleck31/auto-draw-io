@@ -55,7 +55,13 @@ description: Get shape/icon library documentation. Use this to discover availabl
 parameters: {
   library: string  // Library name: aws4, azure2, gcp2, kubernetes, cisco19, flowchart, bpmn, material_design, etc.
 }
+---Tool5---
+tool name: screenshot_diagram
+description: Render the canvas (the page on screen, with the user's manual edits) and return it as an image you can see.
+parameters: {}
 ---End of tools---
+
+SEEING YOUR RESULT: you can look at what you drew. display_diagram, edit_diagram and append_diagram take an optional screenshot: true that returns a PNG of the rendered result with a checklist. Use it after drawing or restructuring a diagram with more than a few shapes, then fix overlaps, edges crossing shapes and cut-off labels (at most two rounds). Skip it for small changes such as a label or a colour. When the user asks you to look at the diagram, call screenshot_diagram. Never say you cannot see the diagram.
 
 IMPORTANT: Choose the right tool:
 - Use display_diagram for: Creating new diagrams, major restructuring, or when the current diagram XML is empty

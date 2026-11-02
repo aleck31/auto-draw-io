@@ -700,6 +700,8 @@ export function ChatMessageDisplay({
                     return "Extract Content"
                 case "get_shape_library":
                     return "Get Shape Library"
+                case "screenshot_diagram":
+                    return "Look at Diagram"
                 default:
                     return name
             }
@@ -794,6 +796,22 @@ export function ChatMessageDisplay({
                             </div>
                         )
                     })()}
+                {/* The screenshot the model was given (only the latest is kept) */}
+                {state === "output-available" &&
+                    typeof (output as unknown as { image?: unknown })?.image ===
+                        "string" && (
+                        <div className="px-4 py-3 border-t border-border/40">
+                            {/* biome-ignore lint/performance/noImgElement: a data URL from the canvas */}
+                            <img
+                                src={
+                                    (output as unknown as { image: string })
+                                        .image
+                                }
+                                alt="Screenshot of the diagram sent to the AI"
+                                className="max-h-48 w-auto rounded-md border border-border/40 bg-white"
+                            />
+                        </div>
+                    )}
                 {/* Show get_shape_library output on success */}
                 {output &&
                     toolName === "get_shape_library" &&

@@ -18,6 +18,10 @@ import {
 } from "@/lib/ai-providers"
 import { findCachedResponse } from "@/lib/cached-responses"
 import {
+    diagramToolModelOutput,
+    keepLatestScreenshot,
+} from "@/lib/diagram-screenshot"
+import {
     getTelemetryConfig,
     setTraceInput,
     setTraceOutput,
@@ -32,6 +36,34 @@ import {
 import { getUserIdFromRequest } from "@/lib/user-id"
 
 export const maxDuration = 120
+
+// Tools that take no arguments: an empty input is valid for them, not the
+// leftover of an interrupted stream
+const NO_ARGUMENT_TOOLS = new Set(["screenshot_diagram"])
+
+/** A tool call input Bedrock accepts and the tool can run with */
+function hasValidToolInput(part: { toolName?: string; input?: unknown }) {
+    if (!part.input || typeof part.input !== "object") return false
+    return (
+        Object.keys(part.input).length > 0 ||
+        NO_ARGUMENT_TOOLS.has(part.toolName ?? "")
+    )
+}
+
+// Diagram tools whose results can carry a screenshot of the canvas
+const DIAGRAM_TOOL_NAMES = [
+    "display_diagram",
+    "edit_diagram",
+    "append_diagram",
+    "screenshot_diagram",
+]
+
+const screenshotParam = z
+    .boolean()
+    .optional()
+    .describe(
+        "Also return a PNG of the result so you can check it for overlapping shapes, edges crossing shapes and cut-off labels. Use it after drawing or restructuring a diagram with more than a few shapes; skip it for small changes such as a label or a colour. Adds a few seconds.",
+    )
 
 // File upload limits (must match client-side)
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
@@ -92,11 +124,7 @@ function replaceHistoricalToolInputs(messages: any[]): any[] {
                 if (part.type === "tool-call") {
                     const toolName = part.toolName
                     // Fix invalid/undefined inputs from interrupted streaming
-                    if (
-                        !part.input ||
-                        typeof part.input !== "object" ||
-                        Object.keys(part.input).length === 0
-                    ) {
+                    if (!hasValidToolInput(part)) {
                         // Skip tool calls with invalid inputs entirely
                         return null
                     }
@@ -294,7 +322,24 @@ ${userInputText}
 """`
 
     // Convert UIMessages to ModelMessages and add system message
-    const modelMessages = await convertToModelMessages(messages)
+    // Only the latest screenshot goes to the model as an image; the diagram
+    // tools' toModelOutput turns it into an image part
+    const modelMessages = await convertToModelMessages(
+        keepLatestScreenshot(
+            messages as Parameters<typeof convertToModelMessages>[0],
+        ),
+        {
+            tools: Object.fromEntries(
+                DIAGRAM_TOOL_NAMES.map((name) => [
+                    name,
+                    {
+                        inputSchema: z.any(),
+                        toModelOutput: diagramToolModelOutput,
+                    },
+                ]),
+            ),
+        },
+    )
 
     // DEBUG: Log incoming messages structure
     console.log("[route.ts] Incoming messages count:", messages.length)
@@ -352,11 +397,7 @@ ${userInputText}
             const filteredContent = msg.content.filter((part: any) => {
                 if (part.type === "tool-call") {
                     // Check if input is a valid object (not null, undefined, or empty)
-                    if (
-                        !part.input ||
-                        typeof part.input !== "object" ||
-                        Object.keys(part.input).length === 0
-                    ) {
+                    if (!hasValidToolInput(part)) {
                         console.warn(
                             `[route.ts] Filtering out tool-call with invalid input:`,
                             { toolName: part.toolName, input: part.input },
@@ -690,7 +731,9 @@ Notes:
                     xml: z
                         .string()
                         .describe("XML string to be displayed on draw.io"),
+                    screenshot: screenshotParam,
                 }),
+                toModelOutput: diagramToolModelOutput,
             },
             edit_diagram: {
                 description: `Edit the current diagram by ID-based operations (update/add/delete cells).
@@ -732,7 +775,9 @@ Example - Delete container (children & edges auto-deleted):
                             }),
                         )
                         .describe("Array of operations to apply"),
+                    screenshot: screenshotParam,
                 }),
+                toModelOutput: diagramToolModelOutput,
             },
             append_diagram: {
                 description: `Continue generating diagram XML when previous display_diagram output was truncated due to length limits.
@@ -752,7 +797,15 @@ Example: If previous output ended with '<mxCell id="x" style="rounded=1', contin
                         .describe(
                             "Continuation XML fragment to append (NO wrapper tags)",
                         ),
+                    screenshot: screenshotParam,
                 }),
+                toModelOutput: diagramToolModelOutput,
+            },
+            screenshot_diagram: {
+                description:
+                    "Render the canvas (the page on screen, including the user's manual edits) and return it as a PNG so you can see it. Use it when the user asks you to look at the diagram, or to check a diagram you did not just draw. After display_diagram or edit_diagram, pass screenshot: true to them instead.",
+                inputSchema: z.object({}),
+                toModelOutput: diagramToolModelOutput,
             },
             // Local content extraction (no API key needed)
             web_extract: webExtractTool,
