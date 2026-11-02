@@ -1,23 +1,64 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useEffect, useRef, useState } from "react"
+import {
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useRef,
+    useState,
+} from "react"
 import { STORAGE_DIAGRAM_XML_KEY } from "@/components/chat-panel"
 import type { DrawioFrameHandle } from "@/components/drawio-frame"
 import type { ExportFormat } from "@/components/save-dialog"
 import { getApiEndpoint } from "@/lib/base-path"
 import { uncompressPages, validateEachPage } from "@/lib/diagram-pages"
 import {
+    canReplaceDiagram,
+    commitDiagram,
+    commitShownPreview,
+    hasPreview,
+    previewDiagram,
+    resetPreview,
+    revertPreview,
+} from "@/lib/drawio-bridge"
+import {
     extractDiagramXML,
     isRealDiagram,
     validateAndFixXml,
 } from "../lib/utils"
 
+/**
+ * How a diagram reaches the canvas:
+ * - "open": a full load (links, restores, new chat); no undo history.
+ * - "preview": an AI result still streaming; shown in place, not in the undo
+ *   history, canvas locked. Ignored outside an AI turn and after its tool
+ *   call was committed.
+ * - "commit": a final result; one undo step back to the canvas before the
+ *   previews. Once per toolCallId.
+ * Without a same-origin editor every mode is a full load.
+ */
+export type LoadMode = "open" | "preview" | "commit"
+
+export interface LoadOptions {
+    mode?: LoadMode
+    toolCallId?: string
+}
+
 interface DiagramContextType {
     chartXML: string
     latestSvg: string
     diagramHistory: { svg: string; xml: string }[]
-    loadDiagram: (chart: string, skipValidation?: boolean) => string | null
+    loadDiagram: (
+        chart: string,
+        skipValidation?: boolean,
+        options?: LoadOptions,
+    ) => string | null
+    /** Put the canvas back as it was before the current previews */
+    revertAiPreview: () => void
+    /** An AI turn started (true) or ended (false); ending commits a leftover preview */
+    setAiTurnActive: (active: boolean) => void
     handleExport: () => void
     handleExportWithoutHistory: () => void
     resolverRef: React.Ref<((value: string) => void) | null>
@@ -58,7 +99,16 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
     // Track if diagram has been restored from localStorage
     const hasDiagramRestoredRef = useRef<boolean>(false)
 
+    // Full loads go through postMessage and land later; in-place changes are
+    // immediate, so they wait until no full load is pending (else the load
+    // would overwrite them)
+    const pendingLoadsRef = useRef(0)
+    // toolCallIds whose final result is on the canvas
+    const committedToolCallsRef = useRef<Set<string>>(new Set())
+    const aiTurnActiveRef = useRef(false)
+
     const onDrawioLoad = () => {
+        pendingLoadsRef.current = Math.max(0, pendingLoadsRef.current - 1)
         // Only set ready state once to prevent infinite loops
         if (hasCalledOnLoadRef.current) return
         hasCalledOnLoadRef.current = true
@@ -69,6 +119,8 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
     const resetDrawioReady = () => {
         console.log("[DiagramContext] Resetting DrawIO ready state")
         hasCalledOnLoadRef.current = false
+        pendingLoadsRef.current = 0
+        resetPreview()
         setIsDrawioReady(false)
     }
 
@@ -166,7 +218,16 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
     const loadDiagram = (
         chart: string,
         skipValidation?: boolean,
+        options: LoadOptions = {},
     ): string | null => {
+        const { mode = "open", toolCallId } = options
+        if (toolCallId && committedToolCallsRef.current.has(toolCallId)) {
+            // Already on the canvas: a late preview, or the message effect
+            // replaying what the tool handler committed
+            if (mode !== "open") return null
+        }
+        if (mode === "preview" && !aiTurnActiveRef.current) return null
+
         let xmlToLoad = chart
 
         // Validate XML structure before loading (unless skipped for internal use)
@@ -191,8 +252,28 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
 
         // Keep chartXML in sync even when diagrams are injected (e.g., display_diagram tool)
         setChartXML(xmlToLoad)
+        if (mode === "commit" && toolCallId) {
+            committedToolCallsRef.current.add(toolCallId)
+        }
 
-        if (drawioRef.current) {
+        let applied = false
+        if (
+            mode !== "open" &&
+            pendingLoadsRef.current === 0 &&
+            canReplaceDiagram(xmlToLoad)
+        ) {
+            try {
+                if (mode === "preview") previewDiagram(xmlToLoad)
+                else commitDiagram(xmlToLoad)
+                applied = true
+            } catch (error) {
+                console.warn("[loadDiagram] In-place update failed:", error)
+            }
+        }
+        if (!applied && drawioRef.current) {
+            // A full load replaces any preview, and its base is stale now
+            resetPreview()
+            pendingLoadsRef.current += 1
             drawioRef.current.load({
                 xml: xmlToLoad,
             })
@@ -200,6 +281,37 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
 
         return null
     }
+
+    const revertAiPreview = () => {
+        const base = revertPreview()
+        if (base) setChartXML(base)
+    }
+
+    // Automatic resends (tool results, continuations) end and start the
+    // turn again in quick succession; only a turn that stays ended finishes
+    const turnEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    // Stable: only refs and a state setter inside
+    const setAiTurnActive = useCallback((active: boolean) => {
+        if (turnEndTimerRef.current) {
+            clearTimeout(turnEndTimerRef.current)
+            turnEndTimerRef.current = null
+        }
+        if (active) {
+            aiTurnActiveRef.current = true
+            return
+        }
+        turnEndTimerRef.current = setTimeout(() => {
+            turnEndTimerRef.current = null
+            aiTurnActiveRef.current = false
+            committedToolCallsRef.current.clear()
+            // Stopped, failed or out of retries mid-stream: what is shown
+            // becomes one undo step, and the canvas is unlocked
+            if (hasPreview()) {
+                const shown = commitShownPreview()
+                if (shown) setChartXML(shown)
+            }
+        }, 1500)
+    }, [])
 
     const handleDiagramExport = (data: any) => {
         // Handle save to file if requested (process raw data before extraction)
@@ -395,6 +507,8 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
                 latestSvg,
                 diagramHistory,
                 loadDiagram,
+                revertAiPreview,
+                setAiTurnActive,
                 handleExport,
                 handleExportWithoutHistory,
                 resolverRef,

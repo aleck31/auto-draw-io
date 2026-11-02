@@ -327,7 +327,7 @@ export function ChatMessageDisplay({
     }
 
     const handleDisplayChart = useCallback(
-        (xml: string, showToast = false) => {
+        (xml: string, showToast = false, toolCallId?: string) => {
             let currentXml = xml || ""
             const startTime = performance.now()
 
@@ -384,7 +384,10 @@ export function ChatMessageDisplay({
                     if (!showToast) {
                         previousXML.current = convertedXml
                         const loadStartTime = performance.now()
-                        onDisplayChart(replacedXML, true)
+                        onDisplayChart(replacedXML, true, {
+                            mode: "preview",
+                            toolCallId,
+                        })
                         console.log(
                             `[Streaming] XML processing: ${xmlProcessTime.toFixed(1)}ms, drawio load: ${(performance.now() - loadStartTime).toFixed(1)}ms`,
                         )
@@ -408,7 +411,12 @@ export function ChatMessageDisplay({
                         }
                         // Skip validation in loadDiagram since we already validated above
                         const loadStartTime = performance.now()
-                        onDisplayChart(xmlToLoad, true)
+                        // Commits only when the tool handler didn't (a
+                        // cached example); otherwise this is a no-op
+                        onDisplayChart(xmlToLoad, true, {
+                            mode: "commit",
+                            toolCallId,
+                        })
                         console.log(
                             `[Final] XML processing: ${xmlProcessTime.toFixed(1)}ms, validation+load: ${(performance.now() - loadStartTime).toFixed(1)}ms`,
                         )
@@ -502,6 +510,7 @@ export function ChatMessageDisplay({
                                                 handleDisplayChart(
                                                     pendingXml,
                                                     false,
+                                                    toolCallId,
                                                 )
                                                 lastProcessedXmlRef.current.set(
                                                     toolCallId,
@@ -523,7 +532,7 @@ export function ChatMessageDisplay({
                                     pendingXmlRef.current = null
                                 }
                                 // Show toast only if final XML is malformed
-                                handleDisplayChart(xml, true)
+                                handleDisplayChart(xml, true, toolCallId)
                                 processedToolCalls.current.add(toolCallId)
                                 // Clean up the ref entry - tool is complete, no longer needed
                                 lastProcessedXmlRef.current.delete(toolCallId)
@@ -605,9 +614,17 @@ export function ChatMessageDisplay({
                                                         origXml,
                                                         pending.operations,
                                                     )
-                                                    handleDisplayChart(
+                                                    // A complete document (page
+                                                    // 1 edited, other pages as
+                                                    // they were): shown as is
+                                                    onDisplayChart(
                                                         editedXml,
-                                                        false,
+                                                        true,
+                                                        {
+                                                            mode: "preview",
+                                                            toolCallId:
+                                                                pending.toolCallId,
+                                                        },
                                                     )
                                                     lastProcessedXmlRef.current.set(
                                                         pending.toolCallId +

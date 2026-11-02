@@ -115,6 +115,8 @@ export default function ChatPanel({
 }: ChatPanelProps) {
     const {
         loadDiagram: onDisplayChart,
+        revertAiPreview,
+        setAiTurnActive,
         handleExport: onExport,
         handleExportWithoutHistory,
         resolverRef,
@@ -255,6 +257,7 @@ export default function ChatPanel({
         editDiagramOriginalXmlRef,
         chartXMLRef,
         onDisplayChart,
+        onRevertPreview: revertAiPreview,
         onFetchChart,
         onExport,
         capturePng,
@@ -409,6 +412,12 @@ export default function ChatPanel({
 
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
+    // Previews apply only during an AI turn; when it ends (also stopped or
+    // failed) a leftover preview becomes one undo step
+    useEffect(() => {
+        setAiTurnActive(status === "submitted" || status === "streaming")
+    }, [status, setAiTurnActive])
+
     // Restore messages and XML snapshots from localStorage on mount
     // useLayoutEffect runs synchronously before browser paint, so messages appear immediately
     useLayoutEffect(() => {
@@ -421,6 +430,18 @@ export default function ChatPanel({
             if (savedMessages) {
                 const parsed = JSON.parse(savedMessages)
                 if (Array.isArray(parsed) && parsed.length > 0) {
+                    // Their tool calls are already on the canvas (it is
+                    // restored on its own): the message effect must not
+                    // replay them over later edits
+                    for (const message of parsed) {
+                        for (const part of message?.parts ?? []) {
+                            if (part?.toolCallId) {
+                                processedToolCallsRef.current.add(
+                                    part.toolCallId,
+                                )
+                            }
+                        }
+                    }
                     setMessages(parsed)
                 }
             }
@@ -682,7 +703,8 @@ export default function ChatPanel({
 
     // Restore diagram from snapshot and update ref
     const restoreDiagramFromSnapshot = (savedXml: string) => {
-        onDisplayChart(savedXml, true) // Skip validation for trusted snapshots
+        // Trusted snapshot: no validation; undoable
+        onDisplayChart(savedXml, true, { mode: "commit" })
         chartXMLRef.current = savedXml
     }
 

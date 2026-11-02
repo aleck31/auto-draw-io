@@ -1,4 +1,5 @@
 import type { MutableRefObject } from "react"
+import type { LoadOptions } from "@/contexts/diagram-context"
 import { pageModelXml, placeOnPage } from "@/lib/diagram-pages"
 import {
     isMxCellXmlComplete,
@@ -44,7 +45,13 @@ interface UseDiagramToolHandlersParams {
     partialXmlRef: MutableRefObject<string>
     editDiagramOriginalXmlRef: MutableRefObject<Map<string, string>>
     chartXMLRef: MutableRefObject<string>
-    onDisplayChart: (xml: string, skipValidation?: boolean) => string | null
+    onDisplayChart: (
+        xml: string,
+        skipValidation?: boolean,
+        options?: LoadOptions,
+    ) => string | null
+    /** Put the canvas back as it was before this tool call's previews */
+    onRevertPreview: () => void
     onFetchChart: (saveToHistory?: boolean) => Promise<string>
     onExport: () => void
     capturePng?: () => Promise<string>
@@ -80,6 +87,7 @@ export function useDiagramToolHandlers({
     editDiagramOriginalXmlRef,
     chartXMLRef,
     onDisplayChart,
+    onRevertPreview,
     onFetchChart,
     onExport,
     capturePng,
@@ -161,10 +169,16 @@ NEXT STEP: Call append_diagram with the continuation XML.
         // Validate the drawn page, then load it as page 1 of the canvas file
         const placed = placeAiPage(fullXml, chartXMLRef.current)
         const validationError =
-            placed.error ?? onDisplayChart(placed.xml as string, true)
+            placed.error ??
+            onDisplayChart(placed.xml as string, true, {
+                mode: "commit",
+                toolCallId: toolCall.toolCallId,
+            })
 
         if (validationError) {
             console.warn("[display_diagram] Validation error:", validationError)
+            // The retry starts from the canvas before this call
+            onRevertPreview()
             // Return error to model - sendAutomaticallyWhen will trigger retry
             if (DEBUG) {
                 console.log(
@@ -275,6 +289,8 @@ ${finalXml}
 
             // Check for operation errors
             if (errors.length > 0) {
+                // The retry applies its operations to the canvas before this call
+                onRevertPreview()
                 const errorMessages = errors
                     .map(
                         (e) =>
@@ -307,12 +323,17 @@ Please check the cell IDs and retry.`,
                 chartXMLRef.current || currentXml,
             )
             const validationError =
-                placed.error ?? onDisplayChart(placed.xml as string, true)
+                placed.error ??
+                onDisplayChart(placed.xml as string, true, {
+                    mode: "commit",
+                    toolCallId: toolCall.toolCallId,
+                })
             if (validationError) {
                 console.warn(
                     "[edit_diagram] Validation error:",
                     validationError,
                 )
+                onRevertPreview()
                 addToolOutput({
                     tool: "edit_diagram",
                     toolCallId: toolCall.toolCallId,
@@ -340,6 +361,7 @@ Please fix the operations to avoid structural issues.`,
             editDiagramOriginalXmlRef.current.delete(toolCall.toolCallId)
         } catch (error) {
             console.error("[edit_diagram] Failed:", error)
+            onRevertPreview()
 
             const errorMessage =
                 error instanceof Error ? error.message : String(error)
@@ -409,7 +431,11 @@ Start your continuation with the NEXT character after where it stopped.`,
             const fullXml = wrapWithMxFile(finalXml)
             const placed = placeAiPage(fullXml, chartXMLRef.current)
             const validationError =
-                placed.error ?? onDisplayChart(placed.xml as string, true)
+                placed.error ??
+                onDisplayChart(placed.xml as string, true, {
+                    mode: "commit",
+                    toolCallId: toolCall.toolCallId,
+                })
 
             if (validationError) {
                 addToolOutput({
