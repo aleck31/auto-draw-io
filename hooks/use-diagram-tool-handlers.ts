@@ -51,7 +51,7 @@ interface UseDiagramToolHandlersParams {
         options?: LoadOptions,
     ) => string | null
     /** Put the canvas back as it was before this tool call's previews */
-    onRevertPreview: () => void
+    onRevertPreview: (toolCallId?: string) => void
     onFetchChart: (saveToHistory?: boolean) => Promise<string>
     onExport: () => void
     capturePng?: () => Promise<string>
@@ -178,7 +178,7 @@ NEXT STEP: Call append_diagram with the continuation XML.
         if (validationError) {
             console.warn("[display_diagram] Validation error:", validationError)
             // The retry starts from the canvas before this call
-            onRevertPreview()
+            onRevertPreview(toolCall.toolCallId)
             // Return error to model - sendAutomaticallyWhen will trigger retry
             if (DEBUG) {
                 console.log(
@@ -290,7 +290,7 @@ ${finalXml}
             // Check for operation errors
             if (errors.length > 0) {
                 // The retry applies its operations to the canvas before this call
-                onRevertPreview()
+                onRevertPreview(toolCall.toolCallId)
                 const errorMessages = errors
                     .map(
                         (e) =>
@@ -333,7 +333,7 @@ Please check the cell IDs and retry.`,
                     "[edit_diagram] Validation error:",
                     validationError,
                 )
-                onRevertPreview()
+                onRevertPreview(toolCall.toolCallId)
                 addToolOutput({
                     tool: "edit_diagram",
                     toolCallId: toolCall.toolCallId,
@@ -361,7 +361,7 @@ Please fix the operations to avoid structural issues.`,
             editDiagramOriginalXmlRef.current.delete(toolCall.toolCallId)
         } catch (error) {
             console.error("[edit_diagram] Failed:", error)
-            onRevertPreview()
+            onRevertPreview(toolCall.toolCallId)
 
             const errorMessage =
                 error instanceof Error ? error.message : String(error)

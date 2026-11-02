@@ -18,10 +18,12 @@ import {
     canReplaceDiagram,
     commitDiagram,
     commitShownPreview,
+    currentPageId,
     hasPreview,
     previewDiagram,
     resetPreview,
     revertPreview,
+    selectPage,
 } from "@/lib/drawio-bridge"
 import {
     extractDiagramXML,
@@ -55,8 +57,8 @@ interface DiagramContextType {
         skipValidation?: boolean,
         options?: LoadOptions,
     ) => string | null
-    /** Put the canvas back as it was before the current previews */
-    revertAiPreview: () => void
+    /** Put the canvas back as it was before the current previews; that tool call's late previews are ignored */
+    revertAiPreview: (toolCallId?: string) => void
     /** An AI turn started (true) or ended (false); ending commits a leftover preview */
     setAiTurnActive: (active: boolean) => void
     handleExport: () => void
@@ -103,12 +105,19 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
     // immediate, so they wait until no full load is pending (else the load
     // would overwrite them)
     const pendingLoadsRef = useRef(0)
-    // toolCallIds whose final result is on the canvas
+    // toolCallIds that are finished: committed, or failed and reverted
     const committedToolCallsRef = useRef<Set<string>>(new Set())
     const aiTurnActiveRef = useRef(false)
+    // Page to show again once a pending full load lands
+    const reselectPageRef = useRef<string | null>(null)
 
     const onDrawioLoad = () => {
         pendingLoadsRef.current = Math.max(0, pendingLoadsRef.current - 1)
+        const pageId = reselectPageRef.current
+        if (pageId && pendingLoadsRef.current === 0) {
+            reselectPageRef.current = null
+            selectPage(pageId)
+        }
         // Only set ready state once to prevent infinite loops
         if (hasCalledOnLoadRef.current) return
         hasCalledOnLoadRef.current = true
@@ -255,7 +264,6 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         if (mode === "commit" && toolCallId) {
             committedToolCallsRef.current.add(toolCallId)
         }
-
         let applied = false
         if (
             mode !== "open" &&
@@ -273,6 +281,9 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         if (!applied && drawioRef.current) {
             // A full load replaces any preview, and its base is stale now
             resetPreview()
+            // An AI change loaded in full (the user is on another page than
+            // the one the AI writes): bring the user back to their page
+            reselectPageRef.current = mode !== "open" ? currentPageId() : null
             pendingLoadsRef.current += 1
             drawioRef.current.load({
                 xml: xmlToLoad,
@@ -282,7 +293,8 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         return null
     }
 
-    const revertAiPreview = () => {
+    const revertAiPreview = (toolCallId?: string) => {
+        if (toolCallId) committedToolCallsRef.current.add(toolCallId)
         const base = revertPreview()
         if (base) setChartXML(base)
     }
