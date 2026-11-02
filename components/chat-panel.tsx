@@ -19,7 +19,6 @@ import {
     useState,
 } from "react"
 import { flushSync } from "react-dom"
-import { FaGithub } from "react-icons/fa"
 import { Toaster, toast } from "sonner"
 import { ButtonWithTooltip } from "@/components/button-with-tooltip"
 import { ChatInput } from "@/components/chat-input"
@@ -1035,19 +1034,6 @@ export default function ChatPanel({
                                 className={`${isMobile ? "h-4 w-4" : "h-5 w-5"} text-muted-foreground`}
                             />
                         </ButtonWithTooltip>
-
-                        <div className="w-px h-5 bg-border mx-1" />
-
-                        <a
-                            href="https://github.com/aleck31/auto-draw-io"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                        >
-                            <FaGithub
-                                className={`${isMobile ? "w-4 h-4" : "w-5 h-5"}`}
-                            />
-                        </a>
 
                         <ButtonWithTooltip
                             tooltipContent={dict.nav.settings}
