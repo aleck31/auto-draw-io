@@ -2,8 +2,8 @@
 
 import type React from "react"
 import { createContext, useContext, useEffect, useRef, useState } from "react"
-import type { DrawIoEmbedRef } from "react-drawio"
 import { STORAGE_DIAGRAM_XML_KEY } from "@/components/chat-panel"
+import type { DrawioFrameHandle } from "@/components/drawio-frame"
 import type { ExportFormat } from "@/components/save-dialog"
 import { getApiEndpoint } from "@/lib/base-path"
 import { uncompressPages, validateEachPage } from "@/lib/diagram-pages"
@@ -21,7 +21,7 @@ interface DiagramContextType {
     handleExport: () => void
     handleExportWithoutHistory: () => void
     resolverRef: React.Ref<((value: string) => void) | null>
-    drawioRef: React.Ref<DrawIoEmbedRef | null>
+    drawioRef: React.Ref<DrawioFrameHandle | null>
     handleDiagramExport: (data: any) => void
     handleDiagramAutoSave: (data: { xml?: string }) => void
     clearDiagram: () => void
@@ -51,7 +51,7 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
     const [canSaveDiagram, setCanSaveDiagram] = useState(false)
     const [showSaveDialog, setShowSaveDialog] = useState(false)
     const hasCalledOnLoadRef = useRef(false)
-    const drawioRef = useRef<DrawIoEmbedRef | null>(null)
+    const drawioRef = useRef<DrawioFrameHandle | null>(null)
     const resolverRef = useRef<((value: string) => void) | null>(null)
     // Track if we're expecting an export for history (user-initiated)
     const expectHistoryExportRef = useRef<boolean>(false)

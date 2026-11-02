@@ -6,6 +6,8 @@ yarn-error.log*
 
 # Build output
 .next
+# draw.io is fetched in its own Docker stage
+public/drawio
 out
 dist
 build

@@ -11,13 +11,27 @@ COPY package.json package-lock.json* ./
 # Install dependencies
 RUN npm ci
 
-# Stage 2: Build application
+# Stage 2: draw.io, in its own stage so source changes don't re-download it.
+# DRAWIO_WAR_PATH points at a draw.war in the build context for air-gapped
+# builds; EMBED_DRAWIO_BASE_URL (an external draw.io) skips it.
+FROM node:22-alpine AS drawio
+WORKDIR /app
+ARG EMBED_DRAWIO_BASE_URL=
+ARG DRAWIO_WAR_PATH=
+COPY scripts/drawio-version.json scripts/drawio-zip.mjs scripts/fetch-drawio.mjs ./scripts/
+COPY ${DRAWIO_WAR_PATH:-scripts/drawio-version.json} /tmp/drawio-input
+RUN mkdir -p public/drawio && \
+    if [ -n "$DRAWIO_WAR_PATH" ]; then export DRAWIO_WAR_PATH=/tmp/drawio-input; fi && \
+    EMBED_DRAWIO_BASE_URL="$EMBED_DRAWIO_BASE_URL" node scripts/fetch-drawio.mjs
+
+# Stage 3: Build application
 FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Copy node_modules from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+COPY --from=drawio /app/public/drawio ./public/drawio
 
 # Disable Next.js telemetry during build
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -33,7 +47,7 @@ ENV AUTO_BASE_PATH=${AUTO_BASE_PATH}
 # Build Next.js application (standalone mode)
 RUN npm run build
 
-# Stage 3: Production runtime
+# Stage 4: Production runtime
 FROM node:22-alpine AS runner
 WORKDIR /app
 

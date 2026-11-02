@@ -1,9 +1,9 @@
 "use client"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { DrawIoEmbed } from "react-drawio"
 import type { ImperativePanelHandle } from "react-resizable-panels"
 import { toast } from "sonner"
 import ChatPanel from "@/components/chat-panel"
+import { DrawioFrame } from "@/components/drawio-frame"
 import { STORAGE_CLOSE_PROTECTION_KEY } from "@/components/settings-dialog"
 import {
     ResizableHandle,
@@ -13,9 +13,7 @@ import {
 import { useDiagram } from "@/contexts/diagram-context"
 import { getApiEndpoint } from "@/lib/base-path"
 import { decodeDiagramFragment } from "@/lib/diagram-link"
-
-const drawioBaseUrl =
-    process.env.EMBED_DRAWIO_BASE_URL || "https://embed.diagrams.net"
+import { drawioEditorSrc } from "@/lib/drawio-source"
 
 export default function Home() {
     const {
@@ -39,7 +37,6 @@ export default function Home() {
 
     const chatPanelRef = useRef<ImperativePanelHandle>(null)
     const isSavingRef = useRef(false)
-    const mouseOverDrawioRef = useRef(false)
     const isMobileRef = useRef(false)
 
     // Reset saving flag when dialog closes (with delay to ignore lingering save events from draw.io)
@@ -52,11 +49,8 @@ export default function Home() {
         }
     }, [showSaveDialog])
 
-    // Handle save from draw.io's built-in save button
-    // Note: draw.io sends save events for various reasons (focus changes, etc.)
-    // We use mouse position to determine if the user is interacting with draw.io
+    // draw.io's own Save button (or Ctrl+S) opens the app's save dialog
     const handleDrawioSave = useCallback(() => {
-        if (!mouseOverDrawioRef.current) return
         if (isSavingRef.current) return
         isSavingRef.current = true
         setShowSaveDialog(true)
@@ -237,35 +231,23 @@ export default function Home() {
                         className={`h-full relative ${
                             isMobile ? "p-1" : "p-2"
                         }`}
-                        onMouseEnter={() => {
-                            mouseOverDrawioRef.current = true
-                        }}
-                        onMouseLeave={() => {
-                            mouseOverDrawioRef.current = false
-                        }}
                     >
                         <div className="h-full rounded-xl overflow-hidden shadow-soft-lg border border-border/30 relative">
                             {isLoaded && (
                                 <div
                                     className={`h-full w-full ${isDrawioReady ? "" : "invisible absolute inset-0"}`}
                                 >
-                                    <DrawIoEmbed
+                                    <DrawioFrame
                                         key={`${drawioUi}-${darkMode}`}
                                         ref={drawioRef}
-                                        autosave
+                                        src={drawioEditorSrc({
+                                            ui: drawioUi,
+                                            dark: darkMode,
+                                        })}
                                         onExport={handleDiagramExport}
                                         onAutoSave={handleDiagramAutoSave}
                                         onLoad={handleDrawioLoad}
                                         onSave={handleDrawioSave}
-                                        baseUrl={drawioBaseUrl}
-                                        urlParameters={{
-                                            ui: drawioUi,
-                                            spin: false,
-                                            libraries: false,
-                                            saveAndExit: false,
-                                            noExitBtn: true,
-                                            dark: darkMode,
-                                        }}
                                     />
                                 </div>
                             )}

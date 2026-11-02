@@ -52,3 +52,6 @@ push-via-ec2.sh
 .dev.vars
 .open-next/
 .wrangler/
+
+# draw.io copy fetched by scripts/fetch-drawio.mjs
+/public/drawio/
