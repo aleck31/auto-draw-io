@@ -254,6 +254,28 @@ test.describe("AI edits on the same-origin editor", () => {
     })
 })
 
+test("crossing the mobile breakpoint keeps the canvas usable", async ({
+    page,
+}) => {
+    await seedDiagram(page, ONE_BOX)
+    await mockChat(page, [
+        toolCallTurn("display_diagram", { xml: flowCells(["A", "B"]) }),
+    ])
+    await openApp(page)
+    const loading = () =>
+        page.evaluate(() => document.body.innerText.includes("Loading Draw.io"))
+    for (const width of [700, 1400]) {
+        await page.setViewportSize({ width, height: 900 })
+        await page.waitForTimeout(1500)
+        expect(await loading()).toBe(false)
+    }
+    // The canvas still takes AI edits in place
+    await sendAndWait(page, "draw")
+    const state = await canvasState(page)
+    expect(state.labels).toEqual(["A", "B"])
+    expect(state.fullLoads).toBe(0)
+})
+
 test("a reload does not replay the last tool output over later edits", async ({
     page,
 }) => {

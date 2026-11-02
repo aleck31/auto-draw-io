@@ -37,7 +37,6 @@ export default function Home() {
 
     const chatPanelRef = useRef<ImperativePanelHandle>(null)
     const isSavingRef = useRef(false)
-    const isMobileRef = useRef(false)
 
     // Reset saving flag when dialog closes (with delay to ignore lingering save events from draw.io)
     useEffect(() => {
@@ -146,33 +145,20 @@ export default function Home() {
         resetDrawioReady()
     }
 
-    // Check mobile - save diagram and reset draw.io before crossing breakpoint
-    const isInitialRenderRef = useRef(true)
+    // Mobile layout below 768 px. Crossing it only changes the panel layout:
+    // the canvas iframe is keyed by theme and dark mode, so it stays mounted
+    // and its ready state must stay too (resetting it waited for a load event
+    // that never came, leaving "Loading Draw.io..." over a working canvas).
     useEffect(() => {
         const checkMobile = () => {
             const newIsMobile = window.innerWidth < 768
-            // If crossing the breakpoint (not initial render), save diagram and reset draw.io
-            if (
-                !isInitialRenderRef.current &&
-                newIsMobile !== isMobileRef.current
-            ) {
-                // Save diagram before remounting (fire and forget)
-                saveDiagramToStorage().catch(() => {
-                    // Ignore timeout errors during resize
-                })
-                // Reset draw.io ready state so onLoad triggers again after remount
-                setIsDrawioReady(false)
-                resetDrawioReady()
-            }
-            isMobileRef.current = newIsMobile
-            isInitialRenderRef.current = false
             setIsMobile(newIsMobile)
         }
 
         checkMobile()
         window.addEventListener("resize", checkMobile)
         return () => window.removeEventListener("resize", checkMobile)
-    }, [saveDiagramToStorage, resetDrawioReady])
+    }, [])
 
     const toggleChatPanel = () => {
         const panel = chatPanelRef.current
