@@ -22,9 +22,13 @@ COPY . .
 # Disable Next.js telemetry during build
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Build-time argument for self-hosted draw.io URL
-ARG EMBED_DRAWIO_BASE_URL=https://embed.diagrams.net
+# Build-time settings, inlined into the app by next.config.ts.
+# EMBED_DRAWIO_BASE_URL: self-hosted draw.io; empty uses embed.diagrams.net.
+# AUTO_BASE_PATH: subdirectory deployment, e.g. /nextaidrawio.
+ARG EMBED_DRAWIO_BASE_URL=
 ENV EMBED_DRAWIO_BASE_URL=${EMBED_DRAWIO_BASE_URL}
+ARG AUTO_BASE_PATH=
+ENV AUTO_BASE_PATH=${AUTO_BASE_PATH}
 
 # Build Next.js application (standalone mode)
 RUN npm run build
