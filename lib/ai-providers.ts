@@ -18,7 +18,7 @@ export type ProviderName =
  * at runtime overrides this list.
  */
 export const DEFAULT_MODELS =
-    "global.anthropic.claude-sonnet-5,global.anthropic.claude-sonnet-4-6,global.anthropic.claude-opus-4-8"
+    "global.anthropic.claude-sonnet-5-5,global.anthropic.claude-opus-5-5,global.anthropic.claude-sonnet-5"
 
 /**
  * Resolve the configured server models (AI_MODELS env, falling back to

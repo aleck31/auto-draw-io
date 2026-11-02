@@ -109,6 +109,12 @@ export const SUGGESTED_MODELS: Record<ProviderName, string[]> = {
     ],
     bedrock: [
         // Anthropic Claude
+        "anthropic.claude-sonnet-5-5",
+        "anthropic.claude-opus-5-5",
+        "anthropic.claude-haiku-5-5",
+        "anthropic.claude-fable-5-1",
+        "anthropic.claude-sonnet-5",
+        "anthropic.claude-opus-5",
         "anthropic.claude-opus-4-8",
         "anthropic.claude-opus-4-7",
         "anthropic.claude-sonnet-4-6",
