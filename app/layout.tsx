@@ -78,8 +78,9 @@ export const metadata: Metadata = {
             "max-snippet": -1,
         },
     },
+    // app/favicon.ico is picked up by Next on its own
     icons: {
-        icon: "/favicon.ico",
+        apple: "/apple-touch-icon.png",
     },
 }
 

@@ -9,7 +9,6 @@ import {
     Settings,
     Sliders,
 } from "lucide-react"
-import Image from "next/image"
 import type React from "react"
 import {
     useCallback,
@@ -20,6 +19,7 @@ import {
 } from "react"
 import { flushSync } from "react-dom"
 import { Toaster, toast } from "sonner"
+import { AppLogo } from "@/components/app-logo"
 import { ButtonWithTooltip } from "@/components/button-with-tooltip"
 import { ChatInput } from "@/components/chat-input"
 import { ModelConfigDialog } from "@/components/model-config-dialog"
@@ -984,24 +984,16 @@ export default function ChatPanel({
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 overflow-x-hidden">
                         <div className="flex items-center gap-2">
-                            <Image
-                                src={
-                                    darkMode
-                                        ? "/favicon-white.svg"
-                                        : "/favicon.ico"
-                                }
-                                alt="Auto Draw.io"
-                                width={isMobile ? 24 : 28}
-                                height={isMobile ? 24 : 28}
-                                className="rounded flex-shrink-0"
+                            <AppLogo
+                                className={`${isMobile ? "h-6 w-6" : "h-7 w-7"} flex-shrink-0 text-foreground`}
                             />
                             <div className="flex items-baseline gap-2">
                                 <h1
-                                    className={`${isMobile ? "text-sm" : "text-base"} font-semibold tracking-tight whitespace-nowrap`}
+                                    className={`${isMobile ? "text-sm" : "text-base"} font-bold tracking-[-0.02em] whitespace-nowrap`}
                                 >
                                     Auto Draw.io
                                 </h1>
-                                <span className="text-[0.65rem] text-muted-foreground/60">
+                                <span className="text-[0.65rem] text-muted-foreground">
                                     v{process.env.APP_VERSION}
                                 </span>
                             </div>
