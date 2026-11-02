@@ -261,7 +261,7 @@ export function ChatMessageDisplay({
 
             setCopiedMessageId(messageId)
             setTimeout(() => setCopiedMessageId(null), 2000)
-        } catch (err) {
+        } catch {
             // Fallback for non-secure contexts (HTTP) or permission denied
             const textarea = document.createElement("textarea")
             textarea.value = text

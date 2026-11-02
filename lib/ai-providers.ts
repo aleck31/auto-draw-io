@@ -499,23 +499,23 @@ export function getAIModel(overrides?: ClientOverrides): ModelConfig {
     switch (provider) {
         case "bedrock": {
             // Use client-provided credentials if available, otherwise fall back to IAM/env vars
-            const hasClientCredentials =
-                overrides?.awsAccessKeyId && overrides?.awsSecretAccessKey
-            const hasBearerToken = !!overrides?.bedrockApiKey
+            const bearerToken = overrides?.bedrockApiKey
+            const accessKeyId = overrides?.awsAccessKeyId
+            const secretAccessKey = overrides?.awsSecretAccessKey
             const bedrockRegion =
                 overrides?.awsRegion || process.env.AWS_REGION || "us-west-2"
 
             let bedrockProvider
-            if (hasBearerToken) {
+            if (bearerToken) {
                 bedrockProvider = createAmazonBedrock({
                     region: bedrockRegion,
-                    apiKey: overrides.bedrockApiKey!,
+                    apiKey: bearerToken,
                 })
-            } else if (hasClientCredentials) {
+            } else if (accessKeyId && secretAccessKey) {
                 bedrockProvider = createAmazonBedrock({
                     region: bedrockRegion,
-                    accessKeyId: overrides.awsAccessKeyId!,
-                    secretAccessKey: overrides.awsSecretAccessKey!,
+                    accessKeyId,
+                    secretAccessKey,
                     ...(overrides?.awsSessionToken && {
                         sessionToken: overrides.awsSessionToken,
                     }),

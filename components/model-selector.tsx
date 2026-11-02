@@ -1,13 +1,6 @@
 "use client"
 
-import {
-    AlertTriangle,
-    Bot,
-    Check,
-    ChevronDown,
-    Server,
-    Settings2,
-} from "lucide-react"
+import { AlertTriangle, Bot, Check, ChevronDown, Server } from "lucide-react"
 import { useMemo, useState } from "react"
 import {
     ModelSelectorContent,
@@ -19,7 +12,6 @@ import {
     ModelSelectorLogo,
     ModelSelectorName,
     ModelSelector as ModelSelectorRoot,
-    ModelSelectorSeparator,
     ModelSelectorTrigger,
 } from "@/components/ai-elements/model-selector"
 import { ButtonWithTooltip } from "@/components/button-with-tooltip"

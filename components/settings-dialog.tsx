@@ -1,7 +1,6 @@
 "use client"
 
 import { Moon, Sun } from "lucide-react"
-import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
@@ -11,21 +10,12 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PasswordInput } from "@/components/ui/password-input"
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useDictionary } from "@/hooks/use-dictionary"
 import { getApiEndpoint } from "@/lib/base-path"
 import { STORAGE_KEYS } from "@/lib/storage"
-import { cn } from "@/lib/utils"
 
 // Reusable setting item component for consistent layout
 function SettingItem({
@@ -75,7 +65,6 @@ function getStoredAccessCodeRequired(): boolean | null {
 
 function SettingsContent({
     open,
-    onOpenChange,
     onCloseProtectionChange,
     drawioUi,
     onToggleDrawioUi,
@@ -83,8 +72,6 @@ function SettingsContent({
     onToggleDarkMode,
 }: SettingsDialogProps) {
     const dict = useDictionary()
-    const router = useRouter()
-    const search = useSearchParams()
     const [accessCode, setAccessCode] = useState("")
     const [closeProtection, setCloseProtection] = useState(true)
     const [isVerifying, setIsVerifying] = useState(false)
