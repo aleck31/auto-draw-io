@@ -34,10 +34,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (never commit - contains sensitive API keys)
-.env
-.env.local
-.env*.local
+# env files hold API keys; .env.deploy is the production config for scripts/codebuild-release.sh
+.env*
+!.env.example
 
 # vercel
 .vercel
