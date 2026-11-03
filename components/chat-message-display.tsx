@@ -30,6 +30,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { aiPageModel, placeOnAiPage } from "@/lib/ai-page"
 import { getApiEndpoint } from "@/lib/base-path"
 import { validateEachPage } from "@/lib/diagram-pages"
+import { restoreImageData, restoreOperationImages } from "@/lib/embedded-images"
 import {
     applyDiagramOperations,
     convertToLegalXml,
@@ -348,7 +349,8 @@ export function ChatMessageDisplay({
 
     const handleDisplayChart = useCallback(
         (xml: string, showToast = false, toolCallId?: string) => {
-            let currentXml = xml || ""
+            // Pictures the model saw as references go back in (embedded-images.ts)
+            let currentXml = restoreImageData(xml || "", chartXML)
             const startTime = performance.now()
 
             // During streaming (showToast=false), extract only complete mxCell elements
@@ -641,7 +643,10 @@ export function ChatMessageDisplay({
                                                     } = applyDiagramOperations(
                                                         aiPageModel(origXml) ??
                                                             origXml,
-                                                        pending.operations,
+                                                        restoreOperationImages(
+                                                            pending.operations,
+                                                            origXml,
+                                                        ),
                                                     )
                                                     onDisplayChart(
                                                         placeOnAiPage(

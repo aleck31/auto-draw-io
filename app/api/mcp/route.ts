@@ -19,12 +19,19 @@ import { listPages, pageModelXml, placeOnPage } from "@/lib/diagram-pages"
 import { renderDiagramForModel } from "@/lib/diagram-render"
 import { SCREENSHOT_CHECKLIST } from "@/lib/diagram-screenshot"
 import {
+    diagramsWithImages,
     getCurrentDiagram,
     getDiagram,
     getDiagramAt,
     getDiagramVersion,
     getStoredDiagram,
 } from "@/lib/diagram-store"
+import {
+    hideImageData,
+    imageRefNote,
+    restoreImageData,
+    restoreOperationImages,
+} from "@/lib/embedded-images"
 import { MCP_DRAWING_GUIDE } from "@/lib/mcp-drawing-guide"
 import { getShapeLibraryTool } from "@/lib/tools"
 import { applyDiagramOperations } from "@/lib/utils"
@@ -185,15 +192,27 @@ async function savedResult(
     return { content }
 }
 
+/**
+ * A new diagram's picture references restored from the diagrams they came
+ * from: an agent copies cells from one it read with get_diagram, whose id
+ * the reference does not name, so the store's diagrams are the sources.
+ */
+function restoreFromAnyDiagram(xml: string): string {
+    if (!xml.includes("embedded-image-")) return xml
+    return restoreImageData(xml, ...diagramsWithImages())
+}
+
 /** The first page of a stored diagram as XML, with a note on the other pages */
 function pageForAgent(xml: string): string {
     const pages = listPages(xml)
-    const model = pageModelXml(xml, null) ?? xml
+    // Pictures as short references; edit_cells and create_diagram put them back
+    const model = hideImageData(pageModelXml(xml, null) ?? xml)
     const note =
         pages.length > 1
             ? `\nThe file has ${pages.length} pages (${pages.map((p) => JSON.stringify(p.name)).join(", ")}); this is page 1, the one the tools edit and render.`
             : ""
-    return `\`\`\`xml\n${model}\n\`\`\`${note}`
+    const images = imageRefNote(model)
+    return `\`\`\`xml\n${model}\n\`\`\`${note}${images ? `\n${images}` : ""}`
 }
 
 function buildServer(): McpServer {
@@ -240,7 +259,7 @@ function buildServer(): McpServer {
         },
         async ({ xml, screenshot }) => {
             try {
-                const valid = validDiagramXml(xml)
+                const valid = validDiagramXml(restoreFromAnyDiagram(xml))
                 const saved = saveDiagram(valid.mxfile, { notes: valid.fixes })
                 return await savedResult(saved, "Created", screenshot)
             } catch (error) {
@@ -306,7 +325,14 @@ function buildServer(): McpServer {
                 }
                 const { result, errors } = applyDiagramOperations(
                     page,
-                    operations,
+                    // Its pictures, and those of its earlier versions
+                    restoreOperationImages(
+                        operations,
+                        current.xml,
+                        ...(getStoredDiagram(diagram_id)?.versions.map(
+                            (v) => v.xml,
+                        ) ?? []),
+                    ),
                 )
                 if (errors.length) {
                     return toError(

@@ -70,6 +70,8 @@ interface Backend {
     write(diagram: StoredDiagram): void
     remove(id: string): void
     sweep(now: number): void
+    /** Ids of every stored diagram */
+    ids(): string[]
     /** Runs fn with no other write to this diagram in between */
     exclusive<T>(id: string, fn: () => T): T
 }
@@ -105,6 +107,7 @@ function memoryBackend(): Backend {
                 if (isExpired(diagram, now)) diagrams.delete(id)
             }
         },
+        ids: () => [...diagrams.keys()],
         // The store is synchronous, so nothing in this process runs in between
         exclusive: (_id, fn) => fn(),
     }
@@ -146,6 +149,11 @@ function fileBackend(dir: string): Backend {
                 }
             }
         },
+        ids: () =>
+            fs
+                .readdirSync(dir)
+                .filter((name) => name.endsWith(".json"))
+                .map((name) => name.slice(0, -5)),
         exclusive(id, fn) {
             // Exclusive create is atomic on local disks and on EFS (NFSv4)
             const lock = path.join(dir, `${id}.lock`)
@@ -207,7 +215,15 @@ function store(): Backend {
 function read(id: string): StoredDiagram | null {
     if (!isDiagramId(id)) return null
     const diagram = store().read(id)
-    if (!diagram || isExpired(diagram)) return null
+    // A file this version can't read is no diagram
+    if (
+        typeof diagram?.xml !== "string" ||
+        !Number.isInteger(diagram.revision) ||
+        !Array.isArray(diagram.versions) ||
+        isExpired(diagram)
+    ) {
+        return null
+    }
     return diagram
 }
 
@@ -252,6 +268,25 @@ export function getDiagramAt(
 /** The current XML of a diagram, or null when unknown or expired */
 export function getDiagram(id: string): string | null {
     return read(id)?.xml ?? null
+}
+
+/**
+ * The documents of all stored diagrams (current and kept versions) that embed
+ * a picture: where a picture reference in a new diagram comes from
+ */
+export function diagramsWithImages(): string[] {
+    const found: string[] = []
+    for (const id of store().ids()) {
+        const diagram = read(id)
+        if (!diagram) continue
+        for (const xml of [
+            diagram.xml,
+            ...diagram.versions.map((v) => v.xml),
+        ]) {
+            if (xml.includes("data:image/")) found.push(xml)
+        }
+    }
+    return found
 }
 
 /** Store a new diagram as version 1, revision 1 */

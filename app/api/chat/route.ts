@@ -20,6 +20,7 @@ import { findCachedResponse } from "@/lib/cached-responses"
 import {
     type CanvasNote,
     withCanvasNotes,
+    withImagesHidden,
     withoutOldAttachments,
 } from "@/lib/canvas-note"
 import {
@@ -328,9 +329,8 @@ async function handleChatRequest(req: Request): Promise<Response> {
             : undefined
     const modelMessages = await convertToModelMessages(
         keepLatestScreenshot(
-            withCanvasNotes(
-                withoutOldAttachments(messages),
-                requestCanvas,
+            withImagesHidden(
+                withCanvasNotes(withoutOldAttachments(messages), requestCanvas),
             ) as Parameters<typeof convertToModelMessages>[0],
         ),
         {

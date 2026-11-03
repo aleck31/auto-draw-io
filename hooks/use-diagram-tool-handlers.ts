@@ -5,6 +5,7 @@ import {
     type ScreenshotOutput,
     shrinkScreenshot,
 } from "@/lib/diagram-screenshot"
+import { restoreImageData, restoreOperationImages } from "@/lib/embedded-images"
 import {
     isMxCellXmlComplete,
     validateAndFixXml,
@@ -193,10 +194,12 @@ export function useDiagramToolHandlers({
         toolCall: ToolCall,
         addToolOutput: AddToolOutputFn,
     ) => {
-        const { xml, screenshot } = toolCall.input as {
+        const { xml: written, screenshot } = toolCall.input as {
             xml: string
             screenshot?: boolean
         }
+        // Pictures the model saw as references go back in (embedded-images.ts)
+        const xml = restoreImageData(written, chartXMLRef.current)
 
         // DEBUG: Log raw input to diagnose false truncation detection
         if (DEBUG) {
@@ -306,10 +309,15 @@ ${finalXml}
         toolCall: ToolCall,
         addToolOutput: AddToolOutputFn,
     ) => {
-        const { operations, screenshot } = toolCall.input as {
+        const { operations: written, screenshot } = toolCall.input as {
             operations: DiagramOperation[]
             screenshot?: boolean
         }
+        const operations = restoreOperationImages(
+            written,
+            chartXMLRef.current,
+            editDiagramOriginalXmlRef.current.get(toolCall.toolCallId),
+        )
 
         let currentXml = ""
         try {
@@ -446,10 +454,12 @@ Please check cell IDs and retry, or use display_diagram to regenerate.`,
         toolCall: ToolCall,
         addToolOutput: AddToolOutputFn,
     ) => {
-        const { xml, screenshot } = toolCall.input as {
+        const { xml: written, screenshot } = toolCall.input as {
             xml: string
             screenshot?: boolean
         }
+        // Pictures the model saw as references go back in (embedded-images.ts)
+        const xml = restoreImageData(written, chartXMLRef.current)
 
         // Detect if LLM incorrectly started fresh instead of continuing
         // LLM should only output bare mxCells now, so wrapper tags indicate error

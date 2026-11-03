@@ -23,6 +23,11 @@ import {
     getCurrentDiagram,
     writeDiagramVersion,
 } from "@/lib/diagram-store"
+import {
+    hideImageData,
+    imageRefNote,
+    restoreImageData,
+} from "@/lib/embedded-images"
 import { AGENT_SYSTEM_PROMPT } from "@/lib/mcp-drawing-guide"
 import { getShapeLibraryTool } from "@/lib/tools"
 import { validateAndFixXml, wrapWithMxFile } from "@/lib/utils"
@@ -97,7 +102,9 @@ export class DiagramGenerationError extends Error {
  */
 function currentDiagramMessage(currentXml: string, prompt: string): string {
     const pages = listPages(currentXml)
-    const page = pageModelXml(currentXml, null) ?? currentXml
+    // Pictures as short references; the drawing gets them back
+    const page = hideImageData(pageModelXml(currentXml, null) ?? currentXml)
+    const images = imageRefNote(page)
     const pagesNote =
         pages.length > 1
             ? `\n\nThe file has ${pages.length} pages: ${pages
@@ -110,7 +117,7 @@ function currentDiagramMessage(currentXml: string, prompt: string): string {
                       ", ",
                   )}. This is page 1; your diagram replaces it and the other pages are kept.`
             : ""
-    return `Current diagram XML:\n"""xml\n${page}\n"""${pagesNote}\n\n${prompt}`
+    return `Current diagram XML:\n"""xml\n${page}\n"""${pagesNote}${images ? `\n\n${images}` : ""}\n\n${prompt}`
 }
 
 /**
@@ -320,7 +327,7 @@ export async function generateDiagram({
 
     let drawn: { mxfile: string; fixes: string[] }
     try {
-        drawn = validDiagramXml(capturedXml)
+        drawn = validDiagramXml(restoreImageData(capturedXml, currentXml))
     } catch (error) {
         throw new DiagramGenerationError(
             `The model's diagram is invalid: ${(error as Error).message}`,

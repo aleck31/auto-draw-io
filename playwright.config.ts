@@ -12,6 +12,7 @@ export const E2E_STORE_DIR = path.join(os.tmpdir(), "auto-draw-io-e2e-store")
  */
 export default defineConfig({
     testDir: "tests/e2e",
+    globalSetup: "./tests/e2e/global-setup.ts",
     timeout: 60_000,
     // One app instance; tests share its in-memory state only via the browser
     fullyParallel: false,

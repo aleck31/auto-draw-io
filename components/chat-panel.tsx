@@ -35,6 +35,7 @@ import { findCachedResponse } from "@/lib/cached-responses"
 import { canvasFingerprint } from "@/lib/canvas-fingerprint"
 import type { CanvasNote } from "@/lib/canvas-note"
 import { keepLatestScreenshot } from "@/lib/diagram-screenshot"
+import { rememberImages } from "@/lib/embedded-images"
 import { isPdfFile, isTextFile } from "@/lib/pdf-utils"
 import { type FileData, useFileProcessor } from "@/lib/use-file-processor"
 import { cn, formatXML } from "@/lib/utils"
@@ -806,6 +807,9 @@ export default function ChatPanel({
             fingerprint !== null &&
             fingerprint === modelCanvasRef.current &&
             modelEditsRef.current <= MAX_EDITS_WITHOUT_CANVAS
+        // The model may refer to this canvas's pictures later, also after
+        // they are gone from the canvas (embedded-images.ts)
+        rememberImages(xml)
         const canvas: CanvasNote = known
             ? { unchanged: true }
             : aiCanvasContext(xml)

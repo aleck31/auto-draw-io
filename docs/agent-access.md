@@ -45,6 +45,8 @@ Two ways to draw, on the same stored diagrams and cell ids:
 
 A diagram keeps its id while it changes; the last 20 versions are kept, and it expires 30 days after its last change. The tools edit and render the first page of a multi-page file and keep the other pages.
 
+Pictures embedded in a diagram (a pasted screenshot or logo, kept in the cell style as base64) are shown by `get_diagram` as short references (`data:image/png,embedded-image-<id>`). Keep a reference as written in `edit_cells` and `create_diagram` and the picture is put back; `get_diagram_xml` returns the file with the pictures in it.
+
 ### The user edits the diagram too
 
 The view link (`/d/<id>`) opens the diagram in its own editor page, apart from the app's canvas. The user's edits are saved there automatically, so the agent reads them with `get_diagram`.

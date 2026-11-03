@@ -11,6 +11,7 @@
  * Adapted from next-ai-draw-io (#1024: lib/diagram-context.ts and
  * lib/chat-helpers.ts, Apache-2.0).
  */
+import { hideImageData, imageRefNote } from "@/lib/embedded-images"
 
 export type CanvasNote =
     | { xml: string; pages?: string[]; page?: number }
@@ -45,7 +46,10 @@ export function canvasNoteText(note: CanvasNote | undefined): string {
     if (!/<mxCell\b[^>]*\b(vertex|edge)="1"/.test(xml)) {
         return `[Canvas: empty when this message was sent.${pagesText(note.pages, note.page)}]\n\n${LANGUAGE_NOTE}`
     }
-    return `[Canvas when this message was sent. It is the source of truth from this point on and shows any change the user made by hand; take cell ids for edit_diagram from it.${pagesText(note.pages, note.page)}]\n"""xml\n${xml}\n"""\n\n${LANGUAGE_NOTE}`
+    // Pictures as short references (lib/embedded-images.ts)
+    const shown = hideImageData(xml)
+    const images = imageRefNote(shown)
+    return `[Canvas when this message was sent. It is the source of truth from this point on and shows any change the user made by hand; take cell ids for edit_diagram from it.${pagesText(note.pages, note.page)}]\n"""xml\n${shown}\n"""${images ? `\n${images}` : ""}\n\n${LANGUAGE_NOTE}`
 }
 
 // The text of a document the user attached: the client adds
@@ -117,6 +121,56 @@ export function withCanvasNotes<T extends UIMessageLike>(
                 // A new paragraph: some providers join a message's text parts
                 { type: "text", text: `\n\n${canvasNoteText(note)}` },
             ],
+        }
+    })
+}
+
+/** Every string in a value, deep, through f */
+function mapStrings(value: unknown, f: (s: string) => string): unknown {
+    if (typeof value === "string") return f(value)
+    if (Array.isArray(value)) return value.map((v) => mapStrings(v, f))
+    if (value && typeof value === "object") {
+        return Object.fromEntries(
+            Object.entries(value).map(([k, v]) => [k, mapStrings(v, f)]),
+        )
+    }
+    return value
+}
+
+/**
+ * The messages with embedded pictures shown as references in the diagram XML
+ * they carry besides the canvas notes: the model's earlier tool inputs and the
+ * tool results that quote the canvas (failed edits). Screenshots are images
+ * the model is meant to see and are left alone.
+ */
+export function withImagesHidden<T extends UIMessageLike>(messages: T[]): T[] {
+    return messages.map((message) => {
+        if (!JSON.stringify(message.parts ?? []).includes("data:image/")) {
+            return message
+        }
+        return {
+            ...message,
+            parts: (message.parts ?? []).map((part) => {
+                const p = part as {
+                    type?: string
+                    input?: unknown
+                    output?: unknown
+                    errorText?: unknown
+                }
+                if (!p.type?.startsWith("tool-")) return part
+                return {
+                    ...p,
+                    ...(p.input !== undefined && {
+                        input: mapStrings(p.input, hideImageData),
+                    }),
+                    ...(typeof p.output === "string" && {
+                        output: hideImageData(p.output),
+                    }),
+                    ...(typeof p.errorText === "string" && {
+                        errorText: hideImageData(p.errorText),
+                    }),
+                }
+            }),
         }
     })
 }
