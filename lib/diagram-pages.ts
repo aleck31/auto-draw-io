@@ -4,7 +4,7 @@
  * and put a drawing back into it while the other pages stay as they are.
  *
  * Adapted from next-ai-draw-io (lib/diagram-pages.ts, Apache-2.0).
- * Browser only: they rely on DOMParser.
+ * They use DOMParser; server code gets it from lib/server-dom.
  */
 import { inflateRaw } from "pako"
 

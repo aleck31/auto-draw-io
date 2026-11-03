@@ -28,9 +28,6 @@ export function isRealDiagram(xml: string | undefined | null): boolean {
 /** Maximum XML size to process (1MB) - larger XMLs may cause performance issues */
 const MAX_XML_SIZE = 1_000_000
 
-/** Maximum iterations for aggressive cell dropping to prevent infinite loops */
-const MAX_DROP_ITERATIONS = 10
-
 /** Structural attributes that should not be duplicated in draw.io */
 const STRUCTURAL_ATTRS = [
     "edge",
@@ -1577,54 +1574,6 @@ export function autoFixXml(xml: string): { fixed: string; fixes: string[] } {
     )
     if (emptyIdCount > 0) {
         fixes.push(`Generated ${emptyIdCount} missing ID(s)`)
-    }
-
-    // 13. Aggressive: drop broken mxCell elements that can't be fixed
-    // Only do this if DOM parser still finds errors after all other fixes
-    if (typeof DOMParser !== "undefined") {
-        let droppedCells = 0
-        let maxIterations = MAX_DROP_ITERATIONS
-        while (maxIterations-- > 0) {
-            const parser = new DOMParser()
-            const doc = parser.parseFromString(fixed, "text/xml")
-            const parseError = doc.querySelector("parsererror")
-            if (!parseError) break // Valid now!
-
-            const errText = parseError.textContent || ""
-            const match = errText.match(/(\d+):\d+:/)
-            if (!match) break
-
-            const errLine = parseInt(match[1], 10) - 1
-            const lines = fixed.split("\n")
-
-            // Find the mxCell containing this error line
-            let cellStart = errLine
-            let cellEnd = errLine
-
-            // Go back to find <mxCell
-            while (cellStart > 0 && !lines[cellStart].includes("<mxCell")) {
-                cellStart--
-            }
-
-            // Go forward to find </mxCell> or />
-            while (cellEnd < lines.length - 1) {
-                if (
-                    lines[cellEnd].includes("</mxCell>") ||
-                    lines[cellEnd].trim().endsWith("/>")
-                ) {
-                    break
-                }
-                cellEnd++
-            }
-
-            // Remove these lines
-            lines.splice(cellStart, cellEnd - cellStart + 1)
-            fixed = lines.join("\n")
-            droppedCells++
-        }
-        if (droppedCells > 0) {
-            fixes.push(`Dropped ${droppedCells} unfixable mxCell element(s)`)
-        }
     }
 
     return { fixed, fixes }

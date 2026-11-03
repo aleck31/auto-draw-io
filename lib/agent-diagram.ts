@@ -1,3 +1,4 @@
+import "@/lib/server-dom"
 import { generateText, isStepCount, tool } from "ai"
 import { z } from "zod"
 import {
@@ -10,6 +11,7 @@ import {
     buildRenderUrl,
     buildShortViewUrl,
 } from "@/lib/diagram-link"
+import { listPages, pageModelXml, placeOnPage } from "@/lib/diagram-pages"
 import { putDiagram } from "@/lib/diagram-store"
 import { getSystemPrompt } from "@/lib/system-prompts"
 import { getShapeLibraryTool } from "@/lib/tools"
@@ -67,6 +69,28 @@ export class DiagramGenerationError extends Error {
     }
 }
 
+/**
+ * What the model is shown of the diagram to edit: its first page, and the
+ * list of pages when there are several (the other pages stay as they are).
+ */
+function currentDiagramMessage(currentXml: string, prompt: string): string {
+    const pages = listPages(currentXml)
+    const page = pageModelXml(currentXml, null) ?? currentXml
+    const pagesNote =
+        pages.length > 1
+            ? `\n\nThe file has ${pages.length} pages: ${pages
+                  .slice(0, 50)
+                  .map(
+                      (p, i) =>
+                          `${i + 1}. ${JSON.stringify(p.name.slice(0, 100))}`,
+                  )
+                  .join(
+                      ", ",
+                  )}. This is page 1; your diagram replaces it and the other pages are kept.`
+            : ""
+    return `Current diagram XML:\n"""xml\n${page}\n"""${pagesNote}\n\n${prompt}`
+}
+
 export async function generateDiagram({
     prompt,
     currentXml,
@@ -115,7 +139,7 @@ export async function generateDiagram({
             {
                 role: "user",
                 content: currentXml
-                    ? `Current diagram XML:\n"""xml\n${currentXml}\n"""\n\n${prompt}`
+                    ? currentDiagramMessage(currentXml, prompt)
                     : prompt,
             },
         ],
@@ -165,7 +189,11 @@ export async function generateDiagram({
         )
     }
 
-    const finalMxfile = validation.fixed || mxfile
+    // An edit replaces the first page of the current file; its other pages stay
+    const drawn = validation.fixed || mxfile
+    const finalMxfile = currentXml
+        ? placeOnPage(drawn, currentXml, null)
+        : drawn
     const id = putDiagram(finalMxfile)
     const viewUrl = buildShortViewUrl(id)
     const renderUrl = buildRenderUrl(id)
