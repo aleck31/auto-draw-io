@@ -83,3 +83,42 @@ test("an error from the model is shown as an explanation", async ({ page }) => {
         page.getByText("The conversation is too long for this model"),
     ).toBeVisible()
 })
+
+test("reasoning shows where it happened, between the text and the tool calls", async ({
+    page,
+}) => {
+    const reasoning = (id: string, text: string) => [
+        { chunk: { type: "reasoning-start", id } },
+        { chunk: { type: "reasoning-delta", id, delta: text } },
+        { chunk: { type: "reasoning-end", id } },
+    ]
+    const text = (id: string, value: string) => [
+        { chunk: { type: "text-start", id } },
+        { chunk: { type: "text-delta", id, delta: value } },
+        { chunk: { type: "text-end", id } },
+    ]
+    await mockChat(page, [
+        [
+            { chunk: { type: "start" } },
+            ...reasoning("r1", "PLAN-ONE"),
+            ...text("t1", "FIRST-ANSWER"),
+            ...reasoning("r2", "PLAN-TWO"),
+            ...text("t2", "SECOND-ANSWER"),
+            { chunk: { type: "finish" } },
+        ],
+    ])
+    await openApp(page)
+    await sendAndWait(page, "think twice")
+    // Open both reasoning blocks so their text is on the page
+    for (const trigger of await page.getByText(/^Thought for/).all()) {
+        await trigger.click()
+    }
+    const order = await page.evaluate(() => {
+        const body = document.body.innerText
+        return ["PLAN-ONE", "FIRST-ANSWER", "PLAN-TWO", "SECOND-ANSWER"].map(
+            (marker) => body.indexOf(marker),
+        )
+    })
+    expect(order.every((i) => i >= 0)).toBe(true)
+    expect([...order].sort((a, b) => a - b)).toEqual(order)
+})

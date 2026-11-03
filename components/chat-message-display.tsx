@@ -945,52 +945,6 @@ export function ChatMessageDisplay({
                                         </div>
                                     )}
                                 <div className="max-w-[85%] min-w-0">
-                                    {/* Reasoning blocks - displayed first for assistant messages */}
-                                    {message.role === "assistant" &&
-                                        message.parts?.map(
-                                            (part, partIndex) => {
-                                                if (part.type === "reasoning") {
-                                                    const reasoningPart =
-                                                        part as {
-                                                            type: "reasoning"
-                                                            text: string
-                                                        }
-                                                    const isLastPart =
-                                                        partIndex ===
-                                                        (message.parts
-                                                            ?.length ?? 0) -
-                                                            1
-                                                    const isLastMessage =
-                                                        message.id ===
-                                                        messages[
-                                                            messages.length - 1
-                                                        ]?.id
-                                                    const isStreamingReasoning =
-                                                        status ===
-                                                            "streaming" &&
-                                                        isLastPart &&
-                                                        isLastMessage
-
-                                                    return (
-                                                        <Reasoning
-                                                            key={`${message.id}-reasoning-${partIndex}`}
-                                                            className="w-full"
-                                                            isStreaming={
-                                                                isStreamingReasoning
-                                                            }
-                                                        >
-                                                            <ReasoningTrigger />
-                                                            <ReasoningContent>
-                                                                {
-                                                                    reasoningPart.text
-                                                                }
-                                                            </ReasoningContent>
-                                                        </Reasoning>
-                                                    )
-                                                }
-                                                return null
-                                            },
-                                        )}
                                     {/* Edit mode for user messages */}
                                     {isEditing && message.role === "user" ? (
                                         <div className="flex flex-col gap-2">
@@ -1071,11 +1025,14 @@ export function ChatMessageDisplay({
                                             </div>
                                         </div>
                                     ) : (
-                                        /* Render parts in order, grouping consecutive text/file parts into bubbles */
+                                        /* Parts in the order they came (reasoning, text, tool calls), consecutive text/file parts grouped into bubbles */
                                         (() => {
                                             const parts = message.parts || []
                                             const groups: {
-                                                type: "content" | "tool"
+                                                type:
+                                                    | "content"
+                                                    | "tool"
+                                                    | "reasoning"
                                                 parts: typeof parts
                                                 startIndex: number
                                             }[] = []
@@ -1092,6 +1049,15 @@ export function ChatMessageDisplay({
                                                 if (isToolPart) {
                                                     groups.push({
                                                         type: "tool",
+                                                        parts: [part],
+                                                        startIndex: index,
+                                                    })
+                                                } else if (
+                                                    part.type === "reasoning" &&
+                                                    message.role === "assistant"
+                                                ) {
+                                                    groups.push({
+                                                        type: "reasoning",
                                                         parts: [part],
                                                         startIndex: index,
                                                     })
@@ -1123,6 +1089,46 @@ export function ChatMessageDisplay({
                                                         return renderToolPart(
                                                             group
                                                                 .parts[0] as ToolPartLike,
+                                                        )
+                                                    }
+                                                    if (
+                                                        group.type ===
+                                                        "reasoning"
+                                                    ) {
+                                                        // Still streaming: the
+                                                        // last part of the
+                                                        // last message
+                                                        const isStreaming =
+                                                            status ===
+                                                                "streaming" &&
+                                                            group.startIndex ===
+                                                                parts.length -
+                                                                    1 &&
+                                                            message.id ===
+                                                                messages[
+                                                                    messages.length -
+                                                                        1
+                                                                ]?.id
+                                                        return (
+                                                            <Reasoning
+                                                                key={`${message.id}-reasoning-${group.startIndex}`}
+                                                                className="w-full"
+                                                                isStreaming={
+                                                                    isStreaming
+                                                                }
+                                                            >
+                                                                <ReasoningTrigger />
+                                                                <ReasoningContent>
+                                                                    {
+                                                                        (
+                                                                            group
+                                                                                .parts[0] as {
+                                                                                text: string
+                                                                            }
+                                                                        ).text
+                                                                    }
+                                                                </ReasoningContent>
+                                                            </Reasoning>
                                                         )
                                                     }
 
