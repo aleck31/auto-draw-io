@@ -4,8 +4,7 @@
  * app embeds from its own origin (same origin lets it drive the editor
  * directly). Runs before `dev` and `build`, and in its own Docker stage.
  *
- * - Does nothing when that version is already there, or when
- *   EMBED_DRAWIO_BASE_URL points to an external draw.io.
+ * - Does nothing when that version is already there.
  * - DRAWIO_WAR_PATH: use a local draw.war instead of downloading it
  *   (air-gapped builds). Its SHA-256 is checked either way.
  * - Older versions under public/drawio are removed.
@@ -14,9 +13,9 @@ import fs from "node:fs"
 import path from "node:path"
 import { readDrawioVersion, readZipEntries, sha256 } from "./drawio-zip.mjs"
 
-// npm runs this before Next reads the .env files: read them here so an
-// external draw.io set in .env.local skips the download too. @next/env is
-// absent in the Docker stage, where the build args are real env vars.
+// npm runs this before Next reads the .env files: read them here so
+// DRAWIO_WAR_PATH set in .env.local applies. @next/env is absent in the
+// Docker stage, where the build args are real env vars.
 try {
     const { loadEnvConfig } = (await import("@next/env")).default
     loadEnvConfig(process.cwd(), process.env.npm_lifecycle_event === "predev")
@@ -45,10 +44,6 @@ async function readWar() {
 }
 
 async function main() {
-    if (process.env.EMBED_DRAWIO_BASE_URL) {
-        log("EMBED_DRAWIO_BASE_URL is set, skipping the bundled copy")
-        return
-    }
     // Unpacked into a temporary directory and renamed, so an index.html here
     // means a complete copy
     if (fs.existsSync(path.join(DEST, "index.html"))) return
@@ -91,7 +86,7 @@ async function main() {
 main().catch((error) => {
     console.error(`[fetch-drawio] ${error.message}`)
     console.error(
-        "The canvas needs draw.io: check the network, set DRAWIO_WAR_PATH to a local draw.war, or set EMBED_DRAWIO_BASE_URL to an external draw.io.",
+        "The canvas needs draw.io: check the network, or set DRAWIO_WAR_PATH to a local draw.war.",
     )
     process.exit(1)
 })

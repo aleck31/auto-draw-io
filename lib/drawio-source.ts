@@ -1,18 +1,8 @@
 import { getAssetUrl } from "@/lib/base-path"
 import drawioVersion from "@/scripts/drawio-version.json"
 
-/** External draw.io set at build time; empty uses the bundled copy */
-const EXTERNAL_DRAWIO_URL = process.env.EMBED_DRAWIO_BASE_URL || ""
-
-/** Root of the draw.io web app: the bundled copy on this origin, or the external one */
+/** Root of the bundled draw.io on this origin; versioned, so its files are cached as immutable (next.config.ts) */
 export function drawioBaseUrl(): string {
-    if (EXTERNAL_DRAWIO_URL) {
-        const base = EXTERNAL_DRAWIO_URL.startsWith("http")
-            ? EXTERNAL_DRAWIO_URL
-            : `https://${EXTERNAL_DRAWIO_URL}`
-        return base.endsWith("/") ? base : `${base}/`
-    }
-    // Versioned, so its files can be cached as immutable (next.config.ts)
     return getAssetUrl(`/drawio/${drawioVersion.version}/`)
 }
 
@@ -21,9 +11,8 @@ export function drawioEditorSrc(options: {
     ui: string
     dark: boolean
 }): string {
-    // Next.js serves no directory index, so the bundled copy needs the file
-    const page = EXTERNAL_DRAWIO_URL ? "" : "index.html"
-    const url = new URL(`${drawioBaseUrl()}${page}`, window.location.href)
+    // Next.js serves no directory index
+    const url = new URL(`${drawioBaseUrl()}index.html`, window.location.href)
     const params: Record<string, string> = {
         embed: "1",
         proto: "json",

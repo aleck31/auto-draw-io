@@ -2,7 +2,6 @@ services:
   auto-draw-io:
     build:
       context: .
-      # draw.io is bundled; see docs/offline-deployment.md for an external
-      # one (args: EMBED_DRAWIO_BASE_URL) or an air-gapped build (DRAWIO_WAR_PATH)
+      # draw.io is bundled; for an air-gapped build see docs/offline-deployment.md (args: DRAWIO_WAR_PATH)
     ports: ["3000:3000"]
     env_file: .env

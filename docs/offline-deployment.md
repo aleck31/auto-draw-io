@@ -19,24 +19,3 @@ The integration uses draw.io internals, so the version is pinned and upgraded de
 2. `npm run build && npm run test:e2e`. The "upgrade canary" test fails first if an internal the app uses was renamed or removed.
 
 A draw.io release that fixes a security issue (XSS in particular) should be adopted regardless of the pin: the editor runs on the app's origin, next to settings kept in the browser's localStorage.
-
-## Using an external draw.io instead
-
-Set `EMBED_DRAWIO_BASE_URL` at build time to a draw.io the user's browser can reach, for example a `jgraph/drawio` container. The bundled copy is then not downloaded, the editor and `/render/<id>` load from that URL, and diagrams are loaded through draw.io's postMessage protocol: the app works, but AI changes reload the whole diagram, aren't a single undo step, and the canvas isn't locked while the AI draws.
-
-```yaml
-services:
-  drawio:
-    image: jgraph/drawio:latest
-    ports: ["8080:8080"]
-  auto-draw-io:
-    build:
-      context: .
-      args:
-        - EMBED_DRAWIO_BASE_URL=http://localhost:8080
-    ports: ["3000:3000"]
-    env_file: .env
-    depends_on: [drawio]
-```
-
-`EMBED_DRAWIO_BASE_URL` is a build-time variable: changing it requires rebuilding the image. It must be reachable from the user's browser (`http://localhost:8080`, `http://YOUR_SERVER_IP:8080` or `https://drawio.your-domain.com`), not a Docker alias like `http://drawio:8080`.

@@ -11,8 +11,7 @@ export const runtime = "nodejs"
  *  - humans who only want to look at the diagram
  *
  * The draw.io viewer script comes from the bundled draw.io on this origin,
- * or from EMBED_DRAWIO_BASE_URL when an external draw.io is configured, so no
- * deployment needs to reach diagrams.net.
+ * so no deployment needs to reach diagrams.net.
  */
 
 function escapeAttribute(value: string): string {
@@ -40,13 +39,7 @@ export async function GET(
         )
     }
 
-    const external = (process.env.EMBED_DRAWIO_BASE_URL || "").replace(
-        /\/$/,
-        "",
-    )
-    const viewerScript = external
-        ? `${external.startsWith("http") ? external : `https://${external}`}/js/viewer-static.min.js`
-        : `${process.env.AUTO_BASE_PATH || ""}/drawio/${drawioVersion.version}/js/viewer-static.min.js`
+    const viewerScript = `${process.env.AUTO_BASE_PATH || ""}/drawio/${drawioVersion.version}/js/viewer-static.min.js`
 
     const config = escapeAttribute(
         JSON.stringify({

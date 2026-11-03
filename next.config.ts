@@ -10,8 +10,7 @@ const nextConfig: NextConfig = {
     env: {
         APP_VERSION: packageJson.version,
         // Inlined at build time: client components only see what is listed here
-        // (or NEXT_PUBLIC_*), so these must be set when the image is built.
-        EMBED_DRAWIO_BASE_URL: process.env.EMBED_DRAWIO_BASE_URL || "",
+        // (or NEXT_PUBLIC_*), so it must be set when the image is built.
         AUTO_BASE_PATH: process.env.AUTO_BASE_PATH || "",
     },
     // Include instrumentation.ts in standalone build for Langfuse telemetry

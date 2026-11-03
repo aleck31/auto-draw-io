@@ -15,17 +15,15 @@ COPY package.json package-lock.json* ./
 RUN npm ci
 
 # Stage 2: draw.io, in its own stage so source changes don't re-download it.
-# DRAWIO_WAR_PATH points at a draw.war in the build context for air-gapped
-# builds; EMBED_DRAWIO_BASE_URL (an external draw.io) skips it.
+# DRAWIO_WAR_PATH points at a draw.war in the build context for air-gapped builds.
 FROM ${NODE_IMAGE} AS drawio
 WORKDIR /app
-ARG EMBED_DRAWIO_BASE_URL=
 ARG DRAWIO_WAR_PATH=
 COPY scripts/drawio-version.json scripts/drawio-zip.mjs scripts/fetch-drawio.mjs ./scripts/
 COPY ${DRAWIO_WAR_PATH:-scripts/drawio-version.json} /tmp/drawio-input
 RUN mkdir -p public/drawio && \
     if [ -n "$DRAWIO_WAR_PATH" ]; then export DRAWIO_WAR_PATH=/tmp/drawio-input; fi && \
-    EMBED_DRAWIO_BASE_URL="$EMBED_DRAWIO_BASE_URL" node scripts/fetch-drawio.mjs
+    node scripts/fetch-drawio.mjs
 
 # Stage 3: Build application
 FROM ${NODE_IMAGE} AS builder
@@ -39,11 +37,7 @@ COPY --from=drawio /app/public/drawio ./public/drawio
 # Disable Next.js telemetry during build
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Build-time settings, inlined into the app by next.config.ts.
-# EMBED_DRAWIO_BASE_URL: an external draw.io; empty uses the bundled copy.
-# AUTO_BASE_PATH: subdirectory deployment, e.g. /nextaidrawio.
-ARG EMBED_DRAWIO_BASE_URL=
-ENV EMBED_DRAWIO_BASE_URL=${EMBED_DRAWIO_BASE_URL}
+# Build-time setting, inlined into the app by next.config.ts: subdirectory deployment, e.g. /nextaidrawio.
 ARG AUTO_BASE_PATH=
 ENV AUTO_BASE_PATH=${AUTO_BASE_PATH}
 
