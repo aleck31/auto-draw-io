@@ -71,14 +71,21 @@ function appBaseUrl(): string | undefined {
  * Short link for a stored diagram: `<base>/?d=<id>`.
  *
  * Preferred over the fragment form because it keeps agent responses tiny. The
- * trade-off is that it depends on the in-memory store, so it stops working after
- * the TTL expires or the server restarts - use buildDiagramViewUrl() when a
- * durable link matters more than length.
+ * trade-off is that it stops working when the diagram expires (30 days after
+ * its last change) - use buildDiagramViewUrl() when a durable link matters more
+ * than length.
  */
 export function buildShortViewUrl(id: string): string | undefined {
     const base = appBaseUrl()
     if (!base) return undefined
     return `${base}/?d=${id}`
+}
+
+/** PNG of a stored diagram: `<base>/api/diagram/<id>/png` (needs the access code) */
+export function buildPngUrl(id: string): string | undefined {
+    const base = appBaseUrl()
+    if (!base) return undefined
+    return `${base}/api/diagram/${id}/png`
 }
 
 /**

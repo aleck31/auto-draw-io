@@ -16,6 +16,8 @@ const nextConfig: NextConfig = {
     // Include instrumentation.ts in standalone build for Langfuse telemetry
     outputFileTracingIncludes: {
         "*": ["./instrumentation.ts"],
+        // playwright-core reads it at runtime, which file tracing does not see
+        "/api/**/*": ["./node_modules/playwright-core/browsers.json"],
     },
     async headers() {
         return [

@@ -1,4 +1,4 @@
-import { getDiagram } from "@/lib/diagram-store"
+import { getDiagramVersion } from "@/lib/diagram-store"
 import drawioVersion from "@/scripts/drawio-version.json"
 
 export const runtime = "nodejs"
@@ -9,6 +9,8 @@ export const runtime = "nodejs"
  * Contains just the diagram - no app chrome - so it is suitable for:
  *  - agents with a headless browser: open the URL and screenshot to get a PNG
  *  - humans who only want to look at the diagram
+ *
+ * `?v=<version>` shows an earlier version; the first page of the file is shown.
  *
  * The draw.io viewer script comes from the bundled draw.io on this origin,
  * so no deployment needs to reach diagrams.net.
@@ -23,15 +25,17 @@ function escapeAttribute(value: string): string {
 }
 
 export async function GET(
-    _req: Request,
+    req: Request,
     { params }: { params: Promise<{ id: string }> },
 ) {
     const { id } = await params
-    const xml = getDiagram(id)
+    const v = new URL(req.url).searchParams.get("v")
+    const version = v && /^\d+$/.test(v) ? Number(v) : undefined
+    const xml = getDiagramVersion(id, version)?.xml
 
     if (!xml) {
         return new Response(
-            '<!doctype html><meta charset=utf-8><title>Diagram not found</title><body style="font:14px system-ui;padding:2rem">This diagram link has expired or is no longer available. Links last 30 days and are cleared when the server restarts.',
+            '<!doctype html><meta charset=utf-8><title>Diagram not found</title><body style="font:14px system-ui;padding:2rem">This diagram link has expired or is no longer available. Diagrams expire 30 days after their last change.',
             {
                 status: 404,
                 headers: { "Content-Type": "text/html; charset=utf-8" },

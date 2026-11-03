@@ -55,6 +55,7 @@
         "motion": "^12.23.25",
         "next": "^16.2.9",
         "pako": "^2.1.0",
+        "playwright-core": "^1.64.1",
         "prism-react-renderer": "^2.4.1",
         "react": "^19.1.2",
         "react-dom": "^19.1.2",

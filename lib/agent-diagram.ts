@@ -8,11 +8,22 @@ import {
 } from "@/lib/ai-providers"
 import {
     buildDiagramViewUrl,
+    buildPngUrl,
     buildRenderUrl,
     buildShortViewUrl,
 } from "@/lib/diagram-link"
-import { listPages, pageModelXml, placeOnPage } from "@/lib/diagram-pages"
-import { putDiagram } from "@/lib/diagram-store"
+import {
+    listPages,
+    pageModelXml,
+    placeOnPage,
+    validateEachPage,
+} from "@/lib/diagram-pages"
+import {
+    addDiagramVersion,
+    createDiagram,
+    getDiagram,
+    type VersionSource,
+} from "@/lib/diagram-store"
 import { getSystemPrompt } from "@/lib/system-prompts"
 import { getShapeLibraryTool } from "@/lib/tools"
 import { validateAndFixXml, wrapWithMxFile } from "@/lib/utils"
@@ -28,6 +39,8 @@ import { validateAndFixXml, wrapWithMxFile } from "@/lib/utils"
 export interface GenerateDiagramParams {
     prompt: string
     currentXml?: string
+    /** A stored diagram to edit: the result becomes its next version */
+    diagramId?: string
     modelId?: string
     abortSignal?: AbortSignal
     /**
@@ -38,26 +51,31 @@ export interface GenerateDiagramParams {
     onProgress?: (message: string) => void
 }
 
-export interface GenerateDiagramResult {
-    xml: string
+export interface SavedDiagram {
     mxfile: string
     notes?: string[]
     /** Id of the stored diagram; agents use it to fetch the XML on demand. */
     id: string
+    /** Version of the diagram this result stored */
+    version: number
     /** Short link that opens this diagram in the app (needs APP_BASE_URL). */
     viewUrl?: string
-    /**
-     * Render-only page (just the diagram, no app UI). A headless browser can
-     * open this and screenshot it to produce a PNG.
-     */
+    /** Render-only page (just the diagram, no app UI) */
     renderUrl?: string
+    /** PNG of the current version (needs the access code) */
+    pngUrl?: string
     /**
      * Self-contained link with the diagram encoded in the URL fragment. Longer,
-     * but keeps working after the store expires or the server restarts.
+     * but keeps working after the diagram expires.
      */
     durableViewUrl?: string
     /** Number of cells in the diagram, for a short summary. */
     cellCount: number
+}
+
+export interface GenerateDiagramResult extends SavedDiagram {
+    /** The bare mxCells the model wrote */
+    xml: string
 }
 
 export class DiagramGenerationError extends Error {
@@ -91,9 +109,70 @@ function currentDiagramMessage(currentXml: string, prompt: string): string {
     return `Current diagram XML:\n"""xml\n${page}\n"""${pagesNote}\n\n${prompt}`
 }
 
+/**
+ * Wraps, validates and repairs diagram XML (bare mxCells, an mxGraphModel or
+ * an mxfile), page by page. Throws when it cannot be repaired.
+ */
+export function validDiagramXml(xml: string): {
+    mxfile: string
+    fixes: string[]
+} {
+    const mxfile = wrapWithMxFile(xml)
+    const validation = validateEachPage(mxfile, validateAndFixXml)
+    // Still invalid after the repairs; `fixed` then holds a partial repair
+    if (!validation.valid) {
+        throw new DiagramGenerationError(
+            `Invalid diagram XML: ${validation.error}`,
+            400,
+        )
+    }
+    return {
+        mxfile: validation.fixed || mxfile,
+        fixes: validation.fixes ?? [],
+    }
+}
+
+/** Stores a diagram, as a new one or as the next version of diagramId */
+export function saveDiagram(
+    mxfile: string,
+    options: { diagramId?: string; source?: VersionSource; notes?: string[] },
+): SavedDiagram {
+    const source = options.source ?? "agent"
+    let stored: { id: string; version: number }
+    if (options.diagramId) {
+        const added = addDiagramVersion(options.diagramId, mxfile, source)
+        if (!added) throw diagramNotFound(options.diagramId)
+        stored = { id: options.diagramId, version: added.version }
+    } else {
+        stored = createDiagram(mxfile, source)
+    }
+    const viewUrl = buildShortViewUrl(stored.id)
+    const renderUrl = buildRenderUrl(stored.id)
+    const pngUrl = buildPngUrl(stored.id)
+    const durableViewUrl = buildDiagramViewUrl(mxfile)
+    return {
+        mxfile,
+        ...stored,
+        cellCount: mxfile.split("<mxCell").length - 1,
+        ...(options.notes?.length && { notes: options.notes }),
+        ...(viewUrl && { viewUrl }),
+        ...(renderUrl && { renderUrl }),
+        ...(pngUrl && { pngUrl }),
+        ...(durableViewUrl && { durableViewUrl }),
+    }
+}
+
+export function diagramNotFound(id: string): DiagramGenerationError {
+    return new DiagramGenerationError(
+        `Diagram ${id} not found: diagrams expire 30 days after their last change.`,
+        404,
+    )
+}
+
 export async function generateDiagram({
     prompt,
-    currentXml,
+    currentXml: givenXml,
+    diagramId,
     modelId: requestedModel,
     abortSignal,
     onProgress,
@@ -108,6 +187,12 @@ export async function generateDiagram({
             )
         }
         overrides = { modelId: requestedModel }
+    }
+
+    let currentXml = givenXml
+    if (!currentXml && diagramId) {
+        currentXml = getDiagram(diagramId) ?? undefined
+        if (!currentXml) throw diagramNotFound(diagramId)
     }
 
     let capturedXml: string | null = null
@@ -179,36 +264,22 @@ export async function generateDiagram({
         )
     }
 
-    // Validate/repair before handing XML to the caller.
-    const mxfile = wrapWithMxFile(capturedXml)
-    const validation = validateAndFixXml(mxfile)
-    if (!validation.valid && !validation.fixed) {
+    let drawn: { mxfile: string; fixes: string[] }
+    try {
+        drawn = validDiagramXml(capturedXml)
+    } catch (error) {
         throw new DiagramGenerationError(
-            `Generated XML is invalid: ${validation.error}`,
+            `The model's diagram is invalid: ${(error as Error).message}`,
             502,
         )
     }
-
     // An edit replaces the first page of the current file; its other pages stay
-    const drawn = validation.fixed || mxfile
     const finalMxfile = currentXml
-        ? placeOnPage(drawn, currentXml, null)
-        : drawn
-    const id = putDiagram(finalMxfile)
-    const viewUrl = buildShortViewUrl(id)
-    const renderUrl = buildRenderUrl(id)
-    const durableViewUrl = buildDiagramViewUrl(finalMxfile)
-    const cellCount = finalMxfile.split("<mxCell").length - 1
-
+        ? placeOnPage(drawn.mxfile, currentXml, null)
+        : drawn.mxfile
     return {
         xml: capturedXml,
-        mxfile: finalMxfile,
-        id,
-        cellCount,
-        ...(validation.fixes?.length && { notes: validation.fixes }),
-        ...(viewUrl && { viewUrl }),
-        ...(renderUrl && { renderUrl }),
-        ...(durableViewUrl && { durableViewUrl }),
+        ...saveDiagram(finalMxfile, { diagramId, notes: drawn.fixes }),
     }
 }
 

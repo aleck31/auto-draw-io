@@ -24,7 +24,7 @@ export async function GET(
     if (!xml) {
         return NextResponse.json(
             {
-                error: "Diagram not found. Links expire after 30 days and are cleared when the server restarts.",
+                error: "Diagram not found: diagrams expire 30 days after their last change.",
             },
             { status: 404 },
         )

@@ -65,7 +65,7 @@
 -   **AI推理过程显示**：查看支持模型的AI思考过程（OpenAI o1/o3、Gemini、Claude等）
 -   **图表历史记录**：全面的版本控制，跟踪所有更改，允许您查看和恢复AI编辑前的图表版本
 -   **交互式聊天界面**：与AI实时对话来完善您的图表
--   **Agent 接入（MCP / HTTP API）**：AI agent 可通过内置 MCP endpoint 或 `POST /api/agent/diagram` 直接生成架构图，只需填 URL 和 access code（详见 [Agent 接入文档](./docs/agent-access.md)）
+-   **Agent 接入（MCP / HTTP API）**：AI agent 可通过内置 MCP endpoint 自己写 XML 画图（服务端校验、保存版本、渲染 PNG），或让服务端模型按描述生成，也可调用 `POST /api/agent/diagram`；只需填 URL 和 access code（详见 [Agent 接入文档](./docs/agent-access.md)）
 -   **云架构图支持**：专门支持生成云架构图（AWS、GCP、Azure）
 -   **动画连接器**：在图表元素之间创建动态动画连接器，实现更好的可视化效果
 -   **云架构图支持**：专门支持生成云架构图（AWS、GCP、Azure）

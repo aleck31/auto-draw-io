@@ -1,6 +1,10 @@
+import os from "node:os"
+import path from "node:path"
 import { defineConfig, devices } from "@playwright/test"
 
 const PORT = Number(process.env.E2E_PORT || 3200)
+/** The diagram store of the test server (lib/diagram-store.ts) */
+export const E2E_STORE_DIR = path.join(os.tmpdir(), "auto-draw-io-e2e-store")
 
 /**
  * End-to-end tests of the canvas against the standalone build, with the
@@ -28,6 +32,7 @@ export default defineConfig({
             // The model is mocked; no access code, no provider credentials
             ACCESS_CODE: "",
             AI_PROVIDER: "bedrock",
+            DIAGRAM_STORE_DIR: E2E_STORE_DIR,
         },
     },
 })

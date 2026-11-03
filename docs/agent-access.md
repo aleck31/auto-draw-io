@@ -23,39 +23,35 @@ The endpoint is stateless (no session stickiness required), so it runs fine behi
 
 ### Available tools
 
+Two ways to draw, on the same stored diagrams and cell ids:
+
+- **The agent writes the XML** (answers in about a second): the server validates, stores, versions and renders it.
+- **The server's model draws** from a description (can take minutes): `generate_diagram` and `edit_diagram`.
+
 | Tool | Arguments | Returns |
 |------|-----------|---------|
-| `generate_diagram` | `description` | Compact summary: diagram id + links (view/render). No inline XML - fetch it with `get_diagram_xml` if needed. |
-| `edit_diagram` | `change` + `diagram_id` (or `current_xml`) | New diagram id and links |
-| `get_diagram_xml` | `diagram_id` | The full `.drawio` XML |
+| `get_drawing_guide` | | The XML format and the layout and connector-routing rules |
+| `get_shape_library` | `library` | Exact style names of an icon library (`aws4`, `kubernetes`, ...) |
+| `create_diagram` | `xml`, `screenshot?` | A new diagram: id, version 1, links |
+| `edit_cells` | `diagram_id`, `operations`, `screenshot?` | The next version. Operations (`add`, `update`, `delete` by cell id) apply together or not at all |
+| `get_diagram` | `diagram_id`, `version?` | The XML of the first page, the version and the version history, including changes made in the browser |
+| `screenshot_diagram` | `diagram_id`, `version?` | A PNG to look at, with a checklist of problems to look for |
+| `restore_version` | `diagram_id`, `version` | An earlier version saved as the next one |
+| `generate_diagram` | `description` | A new diagram drawn by the server's model |
+| `edit_diagram` | `change` + `diagram_id` (or `current_xml`) | The diagram's next version (a new diagram for `current_xml`) |
+| `get_diagram_xml` | `diagram_id` | The whole `.drawio` file, every page |
 
-Responses are deliberately compact (a few hundred bytes): a diagram id, a link
-to open/edit it, and a render-only link. The XML is not inlined - fetch it with
-`get_diagram_xml` only when you need the markup. To modify a diagram, pass its
-`diagram_id` to `edit_diagram`; you never have to move the XML through the
-conversation.
+`screenshot: true` adds the rendered PNG to the result, so the agent can check its drawing for overlaps and crossing connectors in the same call. Responses are otherwise a few lines: the id, the version and the links.
 
-Generation of a complex diagram can take several minutes; the endpoint streams
-MCP progress notifications throughout, so clients and proxies keep the
-connection open.
+A diagram keeps its id while it changes; the last 20 versions are kept, and it expires 30 days after its last change. The tools edit and render the first page of a multi-page file and keep the other pages.
+
+Generation by the server's model can take several minutes; the endpoint streams MCP progress notifications throughout, so clients and proxies keep the connection open.
 
 ### Getting a PNG
 
-`/render/<id>` serves the diagram on its own, with no app UI, so an agent with a
-headless browser can screenshot it:
+`GET /api/diagram/<id>/png` returns a PNG rendered on the server (send the `x-access-code` header). `?v=<version>` renders an earlier version and `?scale=1|2|3` sets the pixel density (default 2). The server renders with a headless Chromium (`CHROMIUM_PATH`; the Docker image includes one) and the draw.io bundled with the app, so no other host is contacted.
 
-```js
-const page = await browser.newPage()
-await page.goto(`${BASE}/render/${diagramId}`, { waitUntil: "networkidle" })
-const el = await page.waitForSelector(".mxgraph svg, svg")
-await el.screenshot({ path: "diagram.png" })
-```
-
-The viewer script for that page comes from the draw.io bundled with the app, so no deployment needs to reach diagrams.net.
-
-For a vector SVG, open the diagram in the app (`/?d=<id>`) and use draw.io's own
-SVG export - it handles label bounds and namespaces correctly, which a naive DOM
-extraction does not.
+`/render/<id>` serves the diagram on its own, with no app UI, for a person to look at (`?v=<version>` for an earlier version).
 
 Ask the agent something like *"draw an AWS three-tier architecture with an ALB, an EC2 auto-scaling group and RDS Multi-AZ"*. The response gives you a link to open/edit it in the app, and another to render it for a screenshot.
 
@@ -85,10 +81,12 @@ Response:
   "xml": "<mxCell .../>...",
   "mxfile": "<mxfile>...</mxfile>",
   "id": "H9Xq554svFMyXt614WN4qg",
+  "version": 1,
   "cellCount": 12,
   "notes": [],
   "viewUrl": "https://your-deployment.example.com/?d=<id>",
   "renderUrl": "https://your-deployment.example.com/render/<id>",
+  "pngUrl": "https://your-deployment.example.com/api/diagram/<id>/png",
   "durableViewUrl": "https://your-deployment.example.com/#R..."
 }
 ```
@@ -96,15 +94,15 @@ Response:
 - `xml` — bare `<mxCell>` elements
 - `mxfile` — a complete document that draw.io can open directly
 - `id` — diagram id; use it with `/api/diagram/<id>` or the MCP tools
+- `version` — version of the diagram this response stored
 - `cellCount` — number of cells, for a quick sanity check
 - `notes` — XML auto-fixes that were applied, if any
 - `viewUrl` — opens the diagram in the app for viewing/editing
-- `renderUrl` — render-only page, suitable for screenshotting
-- `durableViewUrl` — self-contained link with the diagram in the URL fragment; longer, but keeps working after the store expires or the server restarts
+- `renderUrl` — render-only page
+- `pngUrl` — PNG rendered on the server (needs the access code)
+- `durableViewUrl` — self-contained link with the diagram in the URL fragment; longer, but keeps working after the diagram expires
 
-The `viewUrl`/`renderUrl` links are backed by an in-memory store: entries last 30
-days, are capped at 500, and are cleared when the server restarts. Ids are
-128-bit random tokens, so the links work without an access code.
+Diagrams expire 30 days after their last change. Set `DIAGRAM_STORE_DIR` to keep them in files that survive restarts and deploys (a shared volume when several instances serve the app); without it they are kept in memory, at most 500. Ids are 128-bit random tokens, so the view links work without an access code.
 
 Fetch a stored diagram directly with `GET /api/diagram/<id>` (add `?format=xml`
 for the raw document).

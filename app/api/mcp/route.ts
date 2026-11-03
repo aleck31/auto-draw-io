@@ -1,4 +1,5 @@
 import {
+    type CallToolResult,
     createMcpHandler,
     McpServer,
     type ServerContext,
@@ -7,9 +8,23 @@ import { z } from "zod"
 import {
     checkAgentAccess,
     DiagramGenerationError,
+    diagramNotFound,
     generateDiagram,
+    type SavedDiagram,
+    saveDiagram,
+    validDiagramXml,
 } from "@/lib/agent-diagram"
-import { getDiagram } from "@/lib/diagram-store"
+import { listPages, pageModelXml, placeOnPage } from "@/lib/diagram-pages"
+import { renderDiagramForModel } from "@/lib/diagram-render"
+import { SCREENSHOT_CHECKLIST } from "@/lib/diagram-screenshot"
+import {
+    getDiagram,
+    getDiagramVersion,
+    getStoredDiagram,
+} from "@/lib/diagram-store"
+import { MCP_DRAWING_GUIDE } from "@/lib/mcp-drawing-guide"
+import { getShapeLibraryTool } from "@/lib/tools"
+import { applyDiagramOperations } from "@/lib/utils"
 
 export const runtime = "nodejs"
 export const maxDuration = 600
@@ -17,7 +32,7 @@ export const maxDuration = 600
 /**
  * MCP (Model Context Protocol) endpoint over Streamable HTTP.
  *
- * Lets MCP-capable agents (Claude Desktop, Cursor, Cline, Claude Code) generate
+ * Lets MCP-capable agents (Claude Desktop, Cursor, Cline, Claude Code) draw
  * draw.io diagrams by pointing at this URL - no local install or build needed:
  *
  *   {
@@ -29,12 +44,33 @@ export const maxDuration = 600
  *     }
  *   }
  *
+ * Two ways to draw. The agent writes the XML itself (create_diagram,
+ * edit_cells; the server validates, stores, versions and renders it), or the
+ * server's own model draws from a description (generate_diagram,
+ * edit_diagram). Both use the same stored diagrams and cell ids.
+ *
  * Serves both 2025-era clients (stateless, a fresh server per request) and the
  * 2026-07-28 revision, so it works behind load balancers without sticky sessions.
  */
 
 const DIAGRAM_HINT =
     "Be specific about components and how they connect, e.g. 'AWS: users -> CloudFront -> ALB -> EC2 in private subnet -> RDS Multi-AZ'."
+
+const INSTRUCTIONS = `Draws draw.io diagrams that are stored on the server with an id and a version history (diagrams expire 30 days after their last change).
+To draw the XML yourself: call get_drawing_guide once, get_shape_library before using any icon library (AWS, Azure, GCP, Kubernetes...), then create_diagram, and edit_cells for changes. Pass screenshot: true on the last call of a drawing round to see the result. Read the current diagram with get_diagram: the user may have edited it in the browser.
+To have the server's model draw from a description instead: generate_diagram and edit_diagram.`
+
+const SCREENSHOT_SCHEMA = z
+    .boolean()
+    .optional()
+    .describe(
+        "Also return a PNG of the result, to check for overlaps and connectors crossing shapes. Adds 1 to 3 s.",
+    )
+
+const MODEL_CHECKLIST = SCREENSHOT_CHECKLIST.replaceAll(
+    "edit_diagram",
+    "edit_cells",
+)
 
 /**
  * Wraps a diagram call with MCP progress notifications.
@@ -74,57 +110,311 @@ async function withProgress<T>(
     }
 }
 
-function buildServer(): McpServer {
-    const server = new McpServer({ name: "auto-drawio", version: "1.0.0" })
+const text = (value: string) => ({ type: "text" as const, text: value })
 
-    const toResult = (result: {
-        id: string
-        cellCount: number
-        notes?: string[]
-        viewUrl?: string
-        renderUrl?: string
-    }) => {
-        const notes = result.notes?.length
-            ? ` Auto-fixes: ${result.notes.join("; ")}.`
-            : ""
-        const view = result.viewUrl
-            ? `\nOpen/edit in the browser: ${result.viewUrl}`
-            : ""
-        const render = result.renderUrl
-            ? `\nTo get a PNG: open ${result.renderUrl} in a headless browser and screenshot the svg element (that page has no app UI, only the diagram).`
-            : ""
-        // Compact on purpose: returning the full XML here would add several KB
-        // to the agent's context on every call. Agents fetch it with
-        // get_diagram_xml only when they actually need the markup.
-        return {
-            content: [
-                {
-                    type: "text" as const,
-                    text: `Diagram created (${result.cellCount} cells).${notes}${view}${render}\nDiagram id: ${result.id} - pass it to edit_diagram to modify it, or get_diagram_xml to read the XML.`,
-                },
-            ],
-        }
-    }
-
-    const toError = (error: unknown) => ({
+function toError(error: unknown): CallToolResult {
+    return {
         isError: true,
         content: [
-            {
-                type: "text" as const,
-                text:
-                    error instanceof DiagramGenerationError ||
-                    error instanceof Error
-                        ? error.message
-                        : "Diagram generation failed",
-            },
+            text(
+                error instanceof Error
+                    ? error.message
+                    : "The diagram request failed",
+            ),
         ],
-    })
+    }
+}
+
+/** One short paragraph about a stored diagram, with its links */
+function describeSaved(saved: SavedDiagram, verb: string): string {
+    const lines = [
+        `${verb} diagram ${saved.id}, version ${saved.version} (${saved.cellCount} cells).`,
+    ]
+    if (saved.notes?.length)
+        lines.push(`Auto-fixes: ${saved.notes.join("; ")}.`)
+    if (saved.viewUrl) lines.push(`Open/edit in the browser: ${saved.viewUrl}`)
+    if (saved.pngUrl) {
+        lines.push(
+            `PNG for documents: ${saved.pngUrl} (send the x-access-code header).`,
+        )
+    }
+    return lines.join("\n")
+}
+
+/** The checklist and a PNG for the model, or a note why there is none */
+async function screenshotContent(
+    id: string,
+    version?: number,
+): Promise<CallToolResult["content"]> {
+    try {
+        const data = await renderDiagramForModel(id, version)
+        return [
+            { type: "image" as const, data, mimeType: "image/png" },
+            text(MODEL_CHECKLIST),
+        ]
+    } catch (error) {
+        console.error("[mcp] screenshot:", error)
+        return [
+            text(
+                `Screenshot unavailable: ${error instanceof Error ? error.message : "rendering failed"}.`,
+            ),
+        ]
+    }
+}
+
+async function savedResult(
+    saved: SavedDiagram,
+    verb: string,
+    screenshot: boolean | undefined,
+): Promise<CallToolResult> {
+    const content: CallToolResult["content"] = [
+        text(describeSaved(saved, verb)),
+    ]
+    if (screenshot) {
+        content.push(...(await screenshotContent(saved.id, saved.version)))
+    }
+    return { content }
+}
+
+/** The first page of a stored diagram as XML, with a note on the other pages */
+function pageForAgent(xml: string): string {
+    const pages = listPages(xml)
+    const model = pageModelXml(xml, null) ?? xml
+    const note =
+        pages.length > 1
+            ? `\nThe file has ${pages.length} pages (${pages.map((p) => JSON.stringify(p.name)).join(", ")}); this is page 1, the one the tools edit and render.`
+            : ""
+    return `\`\`\`xml\n${model}\n\`\`\`${note}`
+}
+
+function buildServer(): McpServer {
+    const server = new McpServer(
+        { name: "auto-drawio", version: "1.0.0" },
+        { instructions: INSTRUCTIONS },
+    )
+
+    // ---- Drawing the XML yourself ------------------------------------------
+
+    server.registerTool(
+        "get_drawing_guide",
+        {
+            title: "Get the drawing guide",
+            description:
+                "The XML format and the layout, labelling and connector-routing rules for good draw.io diagrams. Call it once before your first create_diagram.",
+            inputSchema: z.object({}),
+        },
+        async () => ({ content: [text(MCP_DRAWING_GUIDE)] }),
+    )
+
+    server.registerTool(
+        "get_shape_library",
+        {
+            title: "Get an icon library",
+            description: `${getShapeLibraryTool.description}\n\nAlways call it before using icons from a library; never guess style names.`,
+            inputSchema: getShapeLibraryTool.inputSchema,
+        },
+        async ({ library }) => ({
+            content: [text(await getShapeLibraryTool.execute({ library }))],
+        }),
+    )
+
+    server.registerTool(
+        "create_diagram",
+        {
+            title: "Create a diagram from XML",
+            description:
+                "Store a new diagram you wrote as draw.io XML: bare mxCell elements (most common), an <mxGraphModel> or an <mxfile>. The XML is validated and small problems are fixed; returns the diagram id, version 1 and links. See get_drawing_guide for the format.",
+            inputSchema: z.object({
+                xml: z.string().min(1).max(500_000).describe("The diagram XML"),
+                screenshot: SCREENSHOT_SCHEMA,
+            }),
+        },
+        async ({ xml, screenshot }) => {
+            try {
+                const valid = validDiagramXml(xml)
+                const saved = saveDiagram(valid.mxfile, { notes: valid.fixes })
+                return await savedResult(saved, "Created", screenshot)
+            } catch (error) {
+                return toError(error)
+            }
+        },
+    )
+
+    server.registerTool(
+        "edit_cells",
+        {
+            title: "Edit cells of a diagram",
+            description:
+                "Change a stored diagram cell by cell: update (replace a cell with a whole new mxCell, same id), add (append a cell) or delete (a cell, its children and the connectors attached to it). The operations apply together or not at all; on failure each problem is listed and nothing changes. Saves the result as the next version. Ids come from get_diagram or your own XML.",
+            inputSchema: z.object({
+                diagram_id: z.string().describe("Id of the diagram to edit"),
+                operations: z
+                    .array(
+                        z.object({
+                            operation: z.enum(["update", "add", "delete"]),
+                            cell_id: z
+                                .string()
+                                .describe(
+                                    "Id of the cell; for update and add it must match the id in new_xml",
+                                ),
+                            new_xml: z
+                                .string()
+                                .optional()
+                                .describe(
+                                    "The complete mxCell element, for update and add",
+                                ),
+                        }),
+                    )
+                    .min(1)
+                    .max(200),
+                screenshot: SCREENSHOT_SCHEMA,
+            }),
+        },
+        async ({ diagram_id, operations, screenshot }) => {
+            try {
+                const current = getDiagramVersion(diagram_id)
+                if (!current) throw diagramNotFound(diagram_id)
+                const page = pageModelXml(current.xml, null)
+                if (!page) {
+                    throw new DiagramGenerationError(
+                        "The stored diagram has no page to edit.",
+                    )
+                }
+                const { result, errors } = applyDiagramOperations(
+                    page,
+                    operations,
+                )
+                if (errors.length) {
+                    return toError(
+                        new Error(
+                            `Nothing was changed; the diagram is still version ${current.version}. Problems:\n${errors
+                                .map(
+                                    (e) =>
+                                        `- ${e.type} ${e.cellId || "(document)"}: ${e.message}`,
+                                )
+                                .join(
+                                    "\n",
+                                )}\nCall get_diagram for the current cell ids if it was changed elsewhere.`,
+                        ),
+                    )
+                }
+                const valid = validDiagramXml(result)
+                const saved = saveDiagram(
+                    placeOnPage(valid.mxfile, current.xml, null),
+                    { diagramId: diagram_id, notes: valid.fixes },
+                )
+                return await savedResult(saved, "Edited", screenshot)
+            } catch (error) {
+                return toError(error)
+            }
+        },
+    )
+
+    server.registerTool(
+        "get_diagram",
+        {
+            title: "Read a diagram",
+            description:
+                "The XML of a stored diagram (its first page), its version and the version history. Includes changes the user made in the browser, so read it before editing a diagram you have not just written.",
+            inputSchema: z.object({
+                diagram_id: z.string(),
+                version: z
+                    .number()
+                    .int()
+                    .positive()
+                    .optional()
+                    .describe("An earlier version; the current one by default"),
+            }),
+        },
+        async ({ diagram_id, version }) => {
+            const stored = getStoredDiagram(diagram_id)
+            const shown = stored && getDiagramVersion(diagram_id, version)
+            if (!stored || !shown) {
+                return toError(
+                    version && stored
+                        ? new Error(
+                              `Version ${version} of ${diagram_id} is not kept (only the last 20 are).`,
+                          )
+                        : diagramNotFound(diagram_id),
+                )
+            }
+            const history = stored.versions
+                .map((v) => `${v.version} (${v.source})`)
+                .join(", ")
+            const current = stored.versions.at(-1)?.version
+            return {
+                content: [
+                    text(
+                        `Diagram ${diagram_id}, version ${shown.version}${shown.version === current ? " (current)" : `; the current version is ${current}`}. Versions kept: ${history}.\n${pageForAgent(shown.xml)}`,
+                    ),
+                ],
+            }
+        },
+    )
+
+    server.registerTool(
+        "screenshot_diagram",
+        {
+            title: "See a diagram",
+            description:
+                "Render a stored diagram (its first page) and return it as a PNG image you can look at, with a checklist of problems to look for.",
+            inputSchema: z.object({
+                diagram_id: z.string(),
+                version: z.number().int().positive().optional(),
+            }),
+        },
+        async ({ diagram_id, version }) => {
+            const shown = getDiagramVersion(diagram_id, version)
+            if (!shown) return toError(diagramNotFound(diagram_id))
+            const content = await screenshotContent(diagram_id, shown.version)
+            const failed = content.length === 1
+            return { content, ...(failed && { isError: true }) }
+        },
+    )
+
+    server.registerTool(
+        "restore_version",
+        {
+            title: "Restore an earlier version",
+            description:
+                "Make an earlier version of a diagram the current one. It is saved as a new version, so nothing is lost.",
+            inputSchema: z.object({
+                diagram_id: z.string(),
+                version: z.number().int().positive(),
+            }),
+        },
+        async ({ diagram_id, version }) => {
+            try {
+                const earlier = getDiagramVersion(diagram_id, version)
+                if (!earlier) {
+                    throw getStoredDiagram(diagram_id)
+                        ? new Error(
+                              `Version ${version} of ${diagram_id} is not kept (only the last 20 are).`,
+                          )
+                        : diagramNotFound(diagram_id)
+                }
+                const saved = saveDiagram(earlier.xml, {
+                    diagramId: diagram_id,
+                    source: "restore",
+                })
+                return await savedResult(
+                    saved,
+                    `Restored version ${version} of`,
+                    false,
+                )
+            } catch (error) {
+                return toError(error)
+            }
+        },
+    )
+
+    // ---- The server's model draws ------------------------------------------
 
     server.registerTool(
         "generate_diagram",
         {
             title: "Generate a draw.io diagram",
-            description: `Generate a draw.io diagram (architecture diagram, flowchart, cloud design) from a natural-language description. Supports AWS/Azure/GCP/Kubernetes icon libraries. Returns a diagram id plus links: one to open/edit it in the browser, and a render-only page you can screenshot with a headless browser to get a PNG. Use get_diagram_xml if you need the XML itself. ${DIAGRAM_HINT}`,
+            description: `Have the server's model draw a diagram (architecture diagram, flowchart, cloud design) from a natural-language description; can take minutes. Supports AWS/Azure/GCP/Kubernetes icon libraries. Returns the diagram id and links; get_diagram reads the XML, edit_cells and edit_diagram change it. ${DIAGRAM_HINT}`,
             inputSchema: z.object({
                 description: z
                     .string()
@@ -133,11 +423,10 @@ function buildServer(): McpServer {
         },
         async ({ description }, ctx) => {
             try {
-                return toResult(
-                    await withProgress(ctx, (onProgress) =>
-                        generateDiagram({ prompt: description, onProgress }),
-                    ),
+                const saved = await withProgress(ctx, (onProgress) =>
+                    generateDiagram({ prompt: description, onProgress }),
                 )
+                return await savedResult(saved, "Generated", false)
             } catch (error) {
                 console.error("[mcp] generate_diagram:", error)
                 return toError(error)
@@ -148,9 +437,9 @@ function buildServer(): McpServer {
     server.registerTool(
         "edit_diagram",
         {
-            title: "Edit an existing draw.io diagram",
+            title: "Edit a diagram with the server's model",
             description:
-                "Modify an existing diagram. Identify it with diagram_id (from a previous generate/edit call) - or pass current_xml when the diagram came from elsewhere. Returns a new diagram id and link.",
+                "Have the server's model change a diagram from a description of the change. With diagram_id the result is that diagram's next version; pass current_xml instead for a diagram from elsewhere (stored as a new diagram).",
             inputSchema: z.object({
                 change: z
                     .string()
@@ -170,34 +459,22 @@ function buildServer(): McpServer {
             }),
         },
         async ({ change, diagram_id, current_xml }, ctx) => {
-            let baseXml = current_xml
-            if (!baseXml && diagram_id) {
-                const stored = getDiagram(diagram_id)
-                if (!stored) {
-                    return toError(
-                        new Error(
-                            `Diagram ${diagram_id} not found - links expire after 30 days and are cleared on restart. Pass current_xml instead, or generate a new diagram.`,
-                        ),
-                    )
-                }
-                baseXml = stored
-            }
-            if (!baseXml) {
+            if (!diagram_id && !current_xml) {
                 return toError(
                     new Error("Provide either diagram_id or current_xml."),
                 )
             }
-
             try {
-                return toResult(
-                    await withProgress(ctx, (onProgress) =>
-                        generateDiagram({
-                            prompt: change,
-                            currentXml: baseXml,
-                            onProgress,
-                        }),
-                    ),
+                const saved = await withProgress(ctx, (onProgress) =>
+                    generateDiagram({
+                        prompt: change,
+                        ...(diagram_id
+                            ? { diagramId: diagram_id }
+                            : { currentXml: current_xml }),
+                        onProgress,
+                    }),
                 )
+                return await savedResult(saved, "Edited", false)
             } catch (error) {
                 console.error("[mcp] edit_diagram:", error)
                 return toError(error)
@@ -208,34 +485,15 @@ function buildServer(): McpServer {
     server.registerTool(
         "get_diagram_xml",
         {
-            title: "Read a diagram's XML",
+            title: "Read a diagram's whole file",
             description:
-                "Return the full draw.io XML for a diagram id. Use this only when you need the markup itself (to inspect structure or save a .drawio file) - editing can be done with edit_diagram by id.",
-            inputSchema: z.object({
-                diagram_id: z
-                    .string()
-                    .describe(
-                        "Id returned by generate_diagram or edit_diagram",
-                    ),
-            }),
+                "The whole .drawio file of a diagram (every page), for saving it. To read or edit the diagram use get_diagram.",
+            inputSchema: z.object({ diagram_id: z.string() }),
         },
         async ({ diagram_id }) => {
             const xml = getDiagram(diagram_id)
-            if (!xml) {
-                return toError(
-                    new Error(
-                        `Diagram ${diagram_id} not found - links expire after 30 days and are cleared on restart.`,
-                    ),
-                )
-            }
-            return {
-                content: [
-                    {
-                        type: "text" as const,
-                        text: `\`\`\`xml\n${xml}\n\`\`\``,
-                    },
-                ],
-            }
+            if (!xml) return toError(diagramNotFound(diagram_id))
+            return { content: [text(`\`\`\`xml\n${xml}\n\`\`\``)] }
         },
     )
 

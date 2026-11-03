@@ -51,6 +51,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Headless Chromium for server-side PNGs (lib/diagram-render.ts). Liberation
+# Sans matches Helvetica's metrics, so labels wrap as in the editor.
+RUN apk add --no-cache chromium-headless-shell font-liberation font-wqy-zenhei
+ENV CHROMIUM_PATH=/usr/bin/chromium-headless-shell
+
 # Create non-root user for security
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
