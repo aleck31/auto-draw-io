@@ -1,5 +1,5 @@
 import "@/lib/server-dom"
-import { generateText, isStepCount, tool } from "ai"
+import { generateText, hasToolCall, isStepCount, tool } from "ai"
 import { z } from "zod"
 import {
     getAIModel,
@@ -23,7 +23,7 @@ import {
     getCurrentDiagram,
     writeDiagramVersion,
 } from "@/lib/diagram-store"
-import { getSystemPrompt } from "@/lib/system-prompts"
+import { AGENT_SYSTEM_PROMPT } from "@/lib/mcp-drawing-guide"
 import { getShapeLibraryTool } from "@/lib/tools"
 import { validateAndFixXml, wrapWithMxFile } from "@/lib/utils"
 
@@ -31,8 +31,9 @@ import { validateAndFixXml, wrapWithMxFile } from "@/lib/utils"
  * Headless diagram generation shared by the agent REST endpoint
  * (/api/agent/diagram) and the MCP endpoint (/api/mcp).
  *
- * Reuses the same model selection, system prompt, shape-library tool and XML
- * validation as the web client, but returns a plain result instead of a stream.
+ * Reuses the web client's model selection, drawing guide, shape-library tool and
+ * XML validation, with its own prompt (lib/mcp-drawing-guide.ts), and returns a
+ * plain result instead of a stream.
  */
 
 export interface GenerateDiagramParams {
@@ -255,11 +256,13 @@ export async function generateDiagram({
 
     const result = await generateText({
         model,
-        instructions: getSystemPrompt(modelId),
+        // Its own prompt: the chat's describes tools and a canvas this has not
+        instructions: AGENT_SYSTEM_PROMPT,
         maxOutputTokens: process.env.MAX_OUTPUT_TOKENS
             ? parseInt(process.env.MAX_OUTPUT_TOKENS, 10)
             : 64000,
-        stopWhen: isStepCount(5),
+        // The diagram is the answer: no round trip for a closing sentence
+        stopWhen: [isStepCount(5), hasToolCall("display_diagram")],
         ...(abortSignal && { abortSignal }),
         onStepEnd: () => {
             onProgress?.("Still working on the diagram")
