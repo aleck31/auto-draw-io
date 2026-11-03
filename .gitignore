@@ -34,7 +34,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files hold API keys; .env.deploy is the production config for scripts/codebuild-release.sh
+# env files hold API keys
 .env*
 !.env.example
 

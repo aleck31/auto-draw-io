@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for Next.js
 
-# Base image for every stage; CodeBuild passes a public ECR mirror to avoid Docker Hub rate limits
+# Base image for every stage; override it to pull from a registry mirror
 ARG NODE_IMAGE=node:26-alpine
 
 # Stage 1: Install dependencies
