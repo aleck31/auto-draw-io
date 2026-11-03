@@ -1,7 +1,6 @@
 "use client"
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { ImperativePanelHandle } from "react-resizable-panels"
-import { toast } from "sonner"
 import ChatPanel from "@/components/chat-panel"
 import { DrawioFrame } from "@/components/drawio-frame"
 import { STORAGE_CLOSE_PROTECTION_KEY } from "@/components/settings-dialog"
@@ -11,7 +10,6 @@ import {
     ResizablePanelGroup,
 } from "@/components/ui/resizable"
 import { useDiagram } from "@/contexts/diagram-context"
-import { getApiEndpoint } from "@/lib/base-path"
 import { decodeDiagramFragment } from "@/lib/diagram-link"
 import { drawioEditorSrc } from "@/lib/drawio-source"
 
@@ -91,33 +89,10 @@ export default function Home() {
         setIsDrawioReady(true)
         onDrawioLoad()
 
-        // Open a shared diagram link. Two forms are supported:
-        //   /?d=<id>  - short link backed by the server-side store
-        //   /#R<data> - self-contained link with the diagram in the fragment
-        // Either way the parameter is consumed so a later reload doesn't
-        // re-apply it over the user's edits.
+        // A self-contained link with the diagram in the fragment (/#R<data>);
+        // the fragment is consumed so a reload doesn't re-apply it over edits
         const clearLocation = () =>
             window.history.replaceState(null, "", window.location.pathname)
-
-        const shortId = new URLSearchParams(window.location.search).get("d")
-        if (shortId) {
-            fetch(getApiEndpoint(`/api/diagram/${shortId}`))
-                .then((r) => (r.ok ? r.json() : null))
-                .then((data) => {
-                    if (data?.mxfile) {
-                        loadDiagram(data.mxfile)
-                        clearLocation()
-                    } else {
-                        toast.error(
-                            "This diagram link has expired or is no longer available.",
-                        )
-                    }
-                })
-                .catch(() => {
-                    toast.error("Could not load the shared diagram.")
-                })
-            return
-        }
 
         const shared = decodeDiagramFragment(window.location.hash)
         if (shared) {

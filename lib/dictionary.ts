@@ -228,6 +228,23 @@ export const dictionary = {
         onlyVerifiedShown: "Showing only verified models",
         unvalidatedModelWarning: "This model has not been validated yet",
     },
+    sharedDiagram: {
+        title: "Agent diagram",
+        loading: "Loading…",
+        saved: "Saved",
+        unsaved: "Unsaved changes",
+        saving: "Saving…",
+        offline: "Not saved: the server can't be reached. Retrying…",
+        conflict: "The agent changed this diagram while you edited it.",
+        loadLatest: "Load the latest",
+        keepMine: "Keep my version",
+        accessCode: "Saving needs the access code.",
+        accessCodePlaceholder: "Access code",
+        missing:
+            "This diagram has expired or is no longer available. Diagrams expire 30 days after their last change.",
+        invalid: "Not saved: the server refused this diagram.",
+        revision: "revision",
+    },
 } as const
 
 export type Dictionary = typeof dictionary

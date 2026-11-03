@@ -19,6 +19,23 @@ const nextConfig: NextConfig = {
         // playwright-core reads it at runtime, which file tracing does not see
         "/api/**/*": ["./node_modules/playwright-core/browsers.json"],
     },
+    // Old agent links (/?d=<id>) open the diagram's own editor page
+    async redirects() {
+        return [
+            {
+                source: "/",
+                has: [
+                    {
+                        type: "query",
+                        key: "d",
+                        value: "(?<id>[A-Za-z0-9_-]{22})",
+                    },
+                ],
+                destination: "/d/:id",
+                permanent: false,
+            },
+        ]
+    },
     async headers() {
         return [
             {

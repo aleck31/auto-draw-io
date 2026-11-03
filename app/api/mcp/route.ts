@@ -7,6 +7,7 @@ import {
 import { z } from "zod"
 import {
     checkAgentAccess,
+    DiagramChangedError,
     DiagramGenerationError,
     diagramNotFound,
     generateDiagram,
@@ -18,7 +19,9 @@ import { listPages, pageModelXml, placeOnPage } from "@/lib/diagram-pages"
 import { renderDiagramForModel } from "@/lib/diagram-render"
 import { SCREENSHOT_CHECKLIST } from "@/lib/diagram-screenshot"
 import {
+    getCurrentDiagram,
     getDiagram,
+    getDiagramAt,
     getDiagramVersion,
     getStoredDiagram,
 } from "@/lib/diagram-store"
@@ -57,7 +60,8 @@ const DIAGRAM_HINT =
     "Be specific about components and how they connect, e.g. 'AWS: users -> CloudFront -> ALB -> EC2 in private subnet -> RDS Multi-AZ'."
 
 const INSTRUCTIONS = `Draws draw.io diagrams that are stored on the server with an id and a version history (diagrams expire 30 days after their last change).
-To draw the XML yourself: call get_drawing_guide once, get_shape_library before using any icon library (AWS, Azure, GCP, Kubernetes...), then create_diagram, and edit_cells for changes. Pass screenshot: true on the last call of a drawing round to see the result. Read the current diagram with get_diagram: the user may have edited it in the browser.
+To draw the XML yourself: call get_drawing_guide once, get_shape_library before using any icon library (AWS, Azure, GCP, Kubernetes...), then create_diagram, and edit_cells for changes. Pass screenshot: true on the last call of a drawing round to see the result.
+The user may edit a diagram in the browser at any time. Every result gives the diagram's revision: pass it as base_revision to edit_cells, which refuses when the diagram changed since; then read it with get_diagram and redo the change on the current diagram.
 To have the server's model draw from a description instead: generate_diagram and edit_diagram.`
 
 const SCREENSHOT_SCHEMA = z
@@ -128,8 +132,13 @@ function toError(error: unknown): CallToolResult {
 /** One short paragraph about a stored diagram, with its links */
 function describeSaved(saved: SavedDiagram, verb: string): string {
     const lines = [
-        `${verb} diagram ${saved.id}, version ${saved.version} (${saved.cellCount} cells).`,
+        `${verb} diagram ${saved.id}: version ${saved.version}, revision ${saved.revision} (${saved.cellCount} cells).`,
     ]
+    if (saved.keptUserVersion) {
+        lines.push(
+            `The user's browser edits it replaced are kept as version ${saved.keptUserVersion}.`,
+        )
+    }
     if (saved.notes?.length)
         lines.push(`Auto-fixes: ${saved.notes.join("; ")}.`)
     if (saved.viewUrl) lines.push(`Open/edit in the browser: ${saved.viewUrl}`)
@@ -171,7 +180,7 @@ async function savedResult(
         text(describeSaved(saved, verb)),
     ]
     if (screenshot) {
-        content.push(...(await screenshotContent(saved.id, saved.version)))
+        content.push(...(await screenshotContent(saved.id)))
     }
     return { content }
 }
@@ -245,9 +254,16 @@ function buildServer(): McpServer {
         {
             title: "Edit cells of a diagram",
             description:
-                "Change a stored diagram cell by cell: update (replace a cell with a whole new mxCell, same id), add (append a cell) or delete (a cell, its children and the connectors attached to it). The operations apply together or not at all; on failure each problem is listed and nothing changes. Saves the result as the next version. Ids come from get_diagram or your own XML.",
+                "Change a stored diagram cell by cell: update (replace a cell with a whole new mxCell, same id), add (append a cell) or delete (a cell, its children and the connectors attached to it). The operations apply together or not at all; on failure each problem is listed and nothing changes. Refused when the diagram changed after base_revision (the user may edit it in the browser): then read it with get_diagram and redo the change. Saves the result as the next version.",
             inputSchema: z.object({
                 diagram_id: z.string().describe("Id of the diagram to edit"),
+                base_revision: z
+                    .number()
+                    .int()
+                    .positive()
+                    .describe(
+                        "The revision your edit is based on, from the last result or get_diagram",
+                    ),
                 operations: z
                     .array(
                         z.object({
@@ -270,10 +286,18 @@ function buildServer(): McpServer {
                 screenshot: SCREENSHOT_SCHEMA,
             }),
         },
-        async ({ diagram_id, operations, screenshot }) => {
+        async ({ diagram_id, base_revision, operations, screenshot }) => {
             try {
-                const current = getDiagramVersion(diagram_id)
+                const current = getCurrentDiagram(diagram_id)
                 if (!current) throw diagramNotFound(diagram_id)
+                if (current.revision !== base_revision) {
+                    throw new DiagramChangedError(
+                        diagram_id,
+                        base_revision,
+                        current.revision,
+                        current.source,
+                    )
+                }
                 const page = pageModelXml(current.xml, null)
                 if (!page) {
                     throw new DiagramGenerationError(
@@ -287,21 +311,23 @@ function buildServer(): McpServer {
                 if (errors.length) {
                     return toError(
                         new Error(
-                            `Nothing was changed; the diagram is still version ${current.version}. Problems:\n${errors
+                            `Nothing was changed; the diagram is still at revision ${current.revision}. Problems:\n${errors
                                 .map(
                                     (e) =>
                                         `- ${e.type} ${e.cellId || "(document)"}: ${e.message}`,
                                 )
-                                .join(
-                                    "\n",
-                                )}\nCall get_diagram for the current cell ids if it was changed elsewhere.`,
+                                .join("\n")}`,
                         ),
                     )
                 }
                 const valid = validDiagramXml(result)
                 const saved = saveDiagram(
                     placeOnPage(valid.mxfile, current.xml, null),
-                    { diagramId: diagram_id, notes: valid.fixes },
+                    {
+                        diagramId: diagram_id,
+                        baseRevision: base_revision,
+                        notes: valid.fixes,
+                    },
                 )
                 return await savedResult(saved, "Edited", screenshot)
             } catch (error) {
@@ -315,7 +341,7 @@ function buildServer(): McpServer {
         {
             title: "Read a diagram",
             description:
-                "The XML of a stored diagram (its first page), its version and the version history. Includes changes the user made in the browser, so read it before editing a diagram you have not just written.",
+                "The XML of a stored diagram (its first page), its revision and the version history. It includes the user's edits in the browser: read it before editing a diagram you have not just written, and after edit_cells refused a stale base_revision.",
             inputSchema: z.object({
                 diagram_id: z.string(),
                 version: z
@@ -328,24 +354,35 @@ function buildServer(): McpServer {
         },
         async ({ diagram_id, version }) => {
             const stored = getStoredDiagram(diagram_id)
-            const shown = stored && getDiagramVersion(diagram_id, version)
-            if (!stored || !shown) {
-                return toError(
-                    version && stored
-                        ? new Error(
-                              `Version ${version} of ${diagram_id} is not kept (only the last 20 are).`,
-                          )
-                        : diagramNotFound(diagram_id),
-                )
-            }
+            const current = getCurrentDiagram(diagram_id)
+            if (!stored || !current) return toError(diagramNotFound(diagram_id))
             const history = stored.versions
                 .map((v) => `${v.version} (${v.source})`)
                 .join(", ")
-            const current = stored.versions.at(-1)?.version
+            let heading: string
+            let xml: string
+            if (version === undefined) {
+                xml = current.xml
+                heading =
+                    current.version === null
+                        ? `Diagram ${diagram_id}, revision ${current.revision}: the latest version with the user's browser edits (not yet a version).`
+                        : `Diagram ${diagram_id}, revision ${current.revision}: version ${current.version}.`
+            } else {
+                const shown = getDiagramVersion(diagram_id, version)
+                if (!shown) {
+                    return toError(
+                        new Error(
+                            `Version ${version} of ${diagram_id} is not kept (only the last 20 are).`,
+                        ),
+                    )
+                }
+                xml = shown.xml
+                heading = `Diagram ${diagram_id}, version ${version} (the current diagram is at revision ${current.revision}; edit_cells always edits the current one).`
+            }
             return {
                 content: [
                     text(
-                        `Diagram ${diagram_id}, version ${shown.version}${shown.version === current ? " (current)" : `; the current version is ${current}`}. Versions kept: ${history}.\n${pageForAgent(shown.xml)}`,
+                        `${heading} Versions kept: ${history}.\n${pageForAgent(xml)}`,
                     ),
                 ],
             }
@@ -364,9 +401,10 @@ function buildServer(): McpServer {
             }),
         },
         async ({ diagram_id, version }) => {
-            const shown = getDiagramVersion(diagram_id, version)
-            if (!shown) return toError(diagramNotFound(diagram_id))
-            const content = await screenshotContent(diagram_id, shown.version)
+            if (!getDiagramAt(diagram_id, version)) {
+                return toError(diagramNotFound(diagram_id))
+            }
+            const content = await screenshotContent(diagram_id, version)
             const failed = content.length === 1
             return { content, ...(failed && { isError: true }) }
         },

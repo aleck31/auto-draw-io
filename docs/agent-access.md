@@ -32,18 +32,26 @@ Two ways to draw, on the same stored diagrams and cell ids:
 |------|-----------|---------|
 | `get_drawing_guide` | | The XML format and the layout and connector-routing rules |
 | `get_shape_library` | `library` | Exact style names of an icon library (`aws4`, `kubernetes`, ...) |
-| `create_diagram` | `xml`, `screenshot?` | A new diagram: id, version 1, links |
-| `edit_cells` | `diagram_id`, `operations`, `screenshot?` | The next version. Operations (`add`, `update`, `delete` by cell id) apply together or not at all |
-| `get_diagram` | `diagram_id`, `version?` | The XML of the first page, the version and the version history, including changes made in the browser |
+| `create_diagram` | `xml`, `screenshot?` | A new diagram: id, version 1, revision 1, links |
+| `edit_cells` | `diagram_id`, `base_revision`, `operations`, `screenshot?` | The next version. Operations (`add`, `update`, `delete` by cell id) apply together or not at all; refused when the diagram changed after `base_revision` |
+| `get_diagram` | `diagram_id`, `version?` | The XML of the first page, the revision and the version history, including the user's edits in the browser |
 | `screenshot_diagram` | `diagram_id`, `version?` | A PNG to look at, with a checklist of problems to look for |
 | `restore_version` | `diagram_id`, `version` | An earlier version saved as the next one |
 | `generate_diagram` | `description` | A new diagram drawn by the server's model |
 | `edit_diagram` | `change` + `diagram_id` (or `current_xml`) | The diagram's next version (a new diagram for `current_xml`) |
 | `get_diagram_xml` | `diagram_id` | The whole `.drawio` file, every page |
 
-`screenshot: true` adds the rendered PNG to the result, so the agent can check its drawing for overlaps and crossing connectors in the same call. Responses are otherwise a few lines: the id, the version and the links.
+`screenshot: true` adds the rendered PNG to the result, so the agent can check its drawing for overlaps and crossing connectors in the same call. Responses are otherwise a few lines: the id, the version, the revision and the links.
 
 A diagram keeps its id while it changes; the last 20 versions are kept, and it expires 30 days after its last change. The tools edit and render the first page of a multi-page file and keep the other pages.
+
+### The user edits the diagram too
+
+The view link (`/d/<id>`) opens the diagram in its own editor page, apart from the app's canvas. The user's edits are saved there automatically, so the agent reads them with `get_diagram`.
+
+Every accepted change raises the diagram's revision, and every result gives it. `edit_cells` takes the revision its change is based on and is refused when the diagram changed since: the agent then reads it again and redoes the change, so it never overwrites an edit it has not seen. `edit_diagram` is refused the same way when the diagram changed while the server's model drew. In the browser, a save based on an older revision is refused too, and the user chooses between loading the latest and keeping their version.
+
+The history alternates between the two sides: the browser's saves update the current diagram without adding versions, and the user's edits become a version when an agent write replaces them. Saving from the browser needs the access code when the deployment sets one (`PUT /api/diagram/<id>`, `x-access-code`).
 
 Generation by the server's model can take several minutes; the endpoint streams MCP progress notifications throughout, so clients and proxies keep the connection open.
 
@@ -84,7 +92,7 @@ Response:
   "version": 1,
   "cellCount": 12,
   "notes": [],
-  "viewUrl": "https://your-deployment.example.com/?d=<id>",
+  "viewUrl": "https://your-deployment.example.com/d/<id>",
   "renderUrl": "https://your-deployment.example.com/render/<id>",
   "pngUrl": "https://your-deployment.example.com/api/diagram/<id>/png",
   "durableViewUrl": "https://your-deployment.example.com/#R..."
@@ -95,9 +103,10 @@ Response:
 - `mxfile` — a complete document that draw.io can open directly
 - `id` — diagram id; use it with `/api/diagram/<id>` or the MCP tools
 - `version` — version of the diagram this response stored
+- `revision` — the diagram's revision after this change
 - `cellCount` — number of cells, for a quick sanity check
 - `notes` — XML auto-fixes that were applied, if any
-- `viewUrl` — opens the diagram in the app for viewing/editing
+- `viewUrl` — opens the diagram in its editor page; the user's edits are saved back
 - `renderUrl` — render-only page
 - `pngUrl` — PNG rendered on the server (needs the access code)
 - `durableViewUrl` — self-contained link with the diagram in the URL fragment; longer, but keeps working after the diagram expires
@@ -107,16 +116,9 @@ Diagrams expire 30 days after their last change. Set `DIAGRAM_STORE_DIR` to keep
 Fetch a stored diagram directly with `GET /api/diagram/<id>` (add `?format=xml`
 for the raw document).
 
-### Rendered preview link
+### Links
 
-Set `APP_BASE_URL` on the deployment to have responses include a `viewUrl`. The
-diagram is encoded in the URL fragment, so nothing is stored server-side and the
-link works immediately. Opening it loads the diagram into the editor, where it
-can be viewed, edited, or exported as PNG/SVG.
-
-Note: the fragment is decoded in the browser, so an agent cannot download an
-image from this URL - it is for a human to open. Agents receive the diagram as
-XML.
+Set `APP_BASE_URL` on the deployment to have responses include links. `viewUrl` opens the stored diagram's editor page (`/d/<id>`), `renderUrl` the diagram alone and `pngUrl` its PNG. `durableViewUrl` carries the diagram in the URL fragment instead: nothing on the server is needed, so it keeps working after the diagram expires, but edits made through it are not saved back.
 
 ## Tips
 

@@ -19,10 +19,9 @@ import {
     validateEachPage,
 } from "@/lib/diagram-pages"
 import {
-    addDiagramVersion,
     createDiagram,
-    getDiagram,
-    type VersionSource,
+    getCurrentDiagram,
+    writeDiagramVersion,
 } from "@/lib/diagram-store"
 import { getSystemPrompt } from "@/lib/system-prompts"
 import { getShapeLibraryTool } from "@/lib/tools"
@@ -58,6 +57,10 @@ export interface SavedDiagram {
     id: string
     /** Version of the diagram this result stored */
     version: number
+    /** The diagram's revision after this write; the base of the next edit */
+    revision: number
+    /** Browser edits this write replaced were kept as this version */
+    keptUserVersion?: number
     /** Short link that opens this diagram in the app (needs APP_BASE_URL). */
     viewUrl?: string
     /** Render-only page (just the diagram, no app UI) */
@@ -132,19 +135,47 @@ export function validDiagramXml(xml: string): {
     }
 }
 
-/** Stores a diagram, as a new one or as the next version of diagramId */
+/**
+ * Stores a diagram, as a new one or as the next version of diagramId. With
+ * baseRevision, refuses when the diagram changed since that revision.
+ */
 export function saveDiagram(
     mxfile: string,
-    options: { diagramId?: string; source?: VersionSource; notes?: string[] },
+    options: {
+        diagramId?: string
+        baseRevision?: number
+        source?: "agent" | "restore"
+        notes?: string[]
+    },
 ): SavedDiagram {
-    const source = options.source ?? "agent"
-    let stored: { id: string; version: number }
+    let stored: {
+        id: string
+        version: number
+        revision: number
+        keptUserVersion?: number
+    }
     if (options.diagramId) {
-        const added = addDiagramVersion(options.diagramId, mxfile, source)
-        if (!added) throw diagramNotFound(options.diagramId)
-        stored = { id: options.diagramId, version: added.version }
+        const written = writeDiagramVersion(
+            options.diagramId,
+            mxfile,
+            options.source ?? "agent",
+            options.baseRevision,
+        )
+        if (!written.ok && written.reason === "not-found") {
+            throw diagramNotFound(options.diagramId)
+        }
+        if (!written.ok) {
+            throw new DiagramChangedError(
+                options.diagramId,
+                options.baseRevision ?? 0,
+                written.current.revision,
+                written.current.source,
+            )
+        }
+        const { ok: _, ...rest } = written
+        stored = { id: options.diagramId, ...rest }
     } else {
-        stored = createDiagram(mxfile, source)
+        stored = createDiagram(mxfile)
     }
     const viewUrl = buildShortViewUrl(stored.id)
     const renderUrl = buildRenderUrl(stored.id)
@@ -159,6 +190,22 @@ export function saveDiagram(
         ...(renderUrl && { renderUrl }),
         ...(pngUrl && { pngUrl }),
         ...(durableViewUrl && { durableViewUrl }),
+    }
+}
+
+/** The diagram changed after the revision a write was based on */
+export class DiagramChangedError extends DiagramGenerationError {
+    constructor(
+        id: string,
+        baseRevision: number,
+        public revision: number,
+        source: string,
+    ) {
+        super(
+            `Diagram ${id} changed since revision ${baseRevision}: it is now at revision ${revision}${source === "user" ? ", edited by the user in the browser" : ""}. Nothing was saved. Read it with get_diagram and make the change on the current diagram.`,
+            409,
+        )
+        this.name = "DiagramChangedError"
     }
 }
 
@@ -189,10 +236,14 @@ export async function generateDiagram({
         overrides = { modelId: requestedModel }
     }
 
+    // An edit of a stored diagram is saved only if nobody changed it meanwhile
     let currentXml = givenXml
+    let baseRevision: number | undefined
     if (!currentXml && diagramId) {
-        currentXml = getDiagram(diagramId) ?? undefined
-        if (!currentXml) throw diagramNotFound(diagramId)
+        const current = getCurrentDiagram(diagramId)
+        if (!current) throw diagramNotFound(diagramId)
+        currentXml = current.xml
+        baseRevision = current.revision
     }
 
     let capturedXml: string | null = null
@@ -279,7 +330,11 @@ export async function generateDiagram({
         : drawn.mxfile
     return {
         xml: capturedXml,
-        ...saveDiagram(finalMxfile, { diagramId, notes: drawn.fixes }),
+        ...saveDiagram(finalMxfile, {
+            diagramId,
+            baseRevision,
+            notes: drawn.fixes,
+        }),
     }
 }
 

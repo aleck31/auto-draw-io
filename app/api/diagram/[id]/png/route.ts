@@ -1,6 +1,6 @@
 import { checkAgentAccess } from "@/lib/agent-diagram"
 import { RenderUnavailableError, renderDiagramPng } from "@/lib/diagram-render"
-import { getDiagramVersion } from "@/lib/diagram-store"
+import { getDiagramAt } from "@/lib/diagram-store"
 
 export const runtime = "nodejs"
 
@@ -27,7 +27,7 @@ export async function GET(
     const version = v && /^\d+$/.test(v) ? Number(v) : undefined
     const scale = Math.min(3, Math.max(1, Number(query.get("scale")) || 2))
 
-    const stored = getDiagramVersion(id, version)
+    const stored = getDiagramAt(id, version)
     if (!stored) {
         return Response.json(
             {
@@ -37,14 +37,11 @@ export async function GET(
         )
     }
     try {
-        const png = await renderDiagramPng(id, {
-            version: stored.version,
-            scale,
-        })
+        const png = await renderDiagramPng(id, { version, scale })
         return new Response(new Uint8Array(png), {
             headers: {
                 "Content-Type": "image/png",
-                "Content-Disposition": `inline; filename="diagram-${id}-v${stored.version}.png"`,
+                "Content-Disposition": `inline; filename="diagram-${id}${version === undefined ? "" : `-v${version}`}.png"`,
                 // A version never changes; the current one does
                 "Cache-Control":
                     version === undefined

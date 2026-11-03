@@ -68,7 +68,8 @@ function appBaseUrl(): string | undefined {
 }
 
 /**
- * Short link for a stored diagram: `<base>/?d=<id>`.
+ * Short link for a stored diagram: `<base>/d/<id>`, its editor page, where the
+ * user's edits are saved back.
  *
  * Preferred over the fragment form because it keeps agent responses tiny. The
  * trade-off is that it stops working when the diagram expires (30 days after
@@ -78,7 +79,7 @@ function appBaseUrl(): string | undefined {
 export function buildShortViewUrl(id: string): string | undefined {
     const base = appBaseUrl()
     if (!base) return undefined
-    return `${base}/?d=${id}`
+    return `${base}/d/${id}`
 }
 
 /** PNG of a stored diagram: `<base>/api/diagram/<id>/png` (needs the access code) */

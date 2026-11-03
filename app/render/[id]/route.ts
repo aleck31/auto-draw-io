@@ -1,4 +1,4 @@
-import { getDiagramVersion } from "@/lib/diagram-store"
+import { getDiagramAt } from "@/lib/diagram-store"
 import drawioVersion from "@/scripts/drawio-version.json"
 
 export const runtime = "nodejs"
@@ -31,7 +31,7 @@ export async function GET(
     const { id } = await params
     const v = new URL(req.url).searchParams.get("v")
     const version = v && /^\d+$/.test(v) ? Number(v) : undefined
-    const xml = getDiagramVersion(id, version)?.xml
+    const xml = getDiagramAt(id, version)?.xml
 
     if (!xml) {
         return new Response(
