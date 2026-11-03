@@ -5,6 +5,7 @@ import {
     DiagramGenerationError,
     generateDiagram,
 } from "@/lib/agent-diagram"
+import { jsonWithHeartbeat } from "@/lib/stream-heartbeat"
 
 export const runtime = "nodejs"
 export const maxDuration = 600
@@ -22,6 +23,10 @@ export const maxDuration = 600
  *   modelId     (optional) server model to use; must be in AI_MODELS
  *
  * Response: { xml, mxfile, notes? }
+ *
+ * A diagram can take minutes. When it takes longer than 20 s the response
+ * starts as 200 and sends a space every 20 s until the JSON follows, so load
+ * balancers don't close it as idle; a failure after that is { error, status }.
  */
 
 const RequestSchema = z.object({
@@ -56,24 +61,26 @@ export async function POST(req: Request) {
         )
     }
 
-    try {
-        const result = await generateDiagram({
-            ...parsed.data,
-            abortSignal: req.signal,
-        })
-        return NextResponse.json(result)
-    } catch (error) {
-        const status =
-            error instanceof DiagramGenerationError ? error.status : 500
-        console.error("[agent/diagram] Error:", error)
-        return NextResponse.json(
-            {
-                error:
-                    error instanceof Error
-                        ? error.message
-                        : "Diagram generation failed",
-            },
-            { status },
-        )
-    }
+    const work = generateDiagram({
+        ...parsed.data,
+        abortSignal: req.signal,
+    }).then(
+        (result) => ({ body: result as unknown, status: 200 }),
+        (error) => {
+            console.error("[agent/diagram] Error:", error)
+            return {
+                body: {
+                    error:
+                        error instanceof Error
+                            ? error.message
+                            : "Diagram generation failed",
+                },
+                status:
+                    error instanceof DiagramGenerationError
+                        ? error.status
+                        : 500,
+            }
+        },
+    )
+    return jsonWithHeartbeat(work)
 }

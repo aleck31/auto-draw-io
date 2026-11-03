@@ -47,6 +47,21 @@ interface DiagramOperation {
     new_xml?: string
 }
 
+/**
+ * Whether an operation's new_xml is one whole mxCell. While an edit streams,
+ * the last operation's XML can be cut off; Chrome's parser keeps such a cell,
+ * and a vertex without its geometry lands at the origin and shifts the page.
+ */
+function isWholeCell(xml: string, cellId: string): boolean {
+    const doc = new DOMParser().parseFromString(
+        `<wrap>${xml}</wrap>`,
+        "text/xml",
+    )
+    if (doc.querySelector("parsererror")) return false
+    const cell = doc.documentElement.firstElementChild
+    return cell?.nodeName === "mxCell" && cell.getAttribute("id") === cellId
+}
+
 // Helper to extract complete operations from streaming input
 function getCompleteOperations(
     operations: DiagramOperation[] | undefined,
@@ -60,7 +75,9 @@ function getCompleteOperations(
             typeof op.cell_id === "string" &&
             op.cell_id.length > 0 &&
             // delete doesn't need new_xml, update/add do
-            (op.operation === "delete" || typeof op.new_xml === "string"),
+            (op.operation === "delete" ||
+                (typeof op.new_xml === "string" &&
+                    isWholeCell(op.new_xml, op.cell_id))),
     )
 }
 

@@ -33,6 +33,7 @@ import {
     wrapWithObserve,
 } from "@/lib/langfuse"
 import { classifyLLMError } from "@/lib/llm-errors"
+import { withHeartbeat } from "@/lib/stream-heartbeat"
 import { getSystemPrompt } from "@/lib/system-prompts"
 import {
     createWebSearchTool,
@@ -773,27 +774,29 @@ Example: If previous output ended with '<mxCell id="x" style="rounded=1', contin
             }),
     })
 
-    return result.toUIMessageStreamResponse({
-        sendReasoning: true,
-        // A provider error during the stream (context too long, image not
-        // supported, ...) as a message the user can act on
-        onError: (error) => {
-            const { code, message } = classifyLLMError(error)
-            console.error(`[chat] stream error (${code}):`, error)
-            return message
-        },
-        messageMetadata: ({ part }) => {
-            if (part.type === "finish") {
-                const usage = (part as any).totalUsage
-                // AI SDK 6 provides totalTokens directly
-                return {
-                    totalTokens: usage?.totalTokens ?? 0,
-                    finishReason: (part as any).finishReason,
+    return withHeartbeat(
+        result.toUIMessageStreamResponse({
+            sendReasoning: true,
+            // A provider error during the stream (context too long, image not
+            // supported, ...) as a message the user can act on
+            onError: (error) => {
+                const { code, message } = classifyLLMError(error)
+                console.error(`[chat] stream error (${code}):`, error)
+                return message
+            },
+            messageMetadata: ({ part }) => {
+                if (part.type === "finish") {
+                    const usage = (part as any).totalUsage
+                    // AI SDK 6 provides totalTokens directly
+                    return {
+                        totalTokens: usage?.totalTokens ?? 0,
+                        finishReason: (part as any).finishReason,
+                    }
                 }
-            }
-            return undefined
-        },
-    })
+                return undefined
+            },
+        }),
+    )
 }
 
 // Helper to categorize errors and return appropriate response

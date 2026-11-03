@@ -28,6 +28,9 @@ export const dictionary = {
         openrouter: "OpenRouter",
     },
     chat: {
+        outputTruncated:
+            "The model ran out of output before it drew anything. Try again, or ask for a smaller diagram.",
+        retry: "Retry",
         placeholder: "Describe your diagram or upload a file...",
         send: "Send",
         sending: "Sending...",

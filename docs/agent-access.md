@@ -74,6 +74,8 @@ curl -X POST https://your-deployment.example.com/api/agent/diagram \
   -d '{"prompt":"AWS: users -> CloudFront -> ALB -> EC2 -> RDS"}'
 ```
 
+A complex diagram can take a minute or more. When it takes longer than 20 seconds the response starts with status 200 and sends a space every 20 seconds until the JSON follows, so load balancers don't close it as idle (whitespace before JSON is valid, so ordinary JSON parsers read it). A failure after that point comes as `{ "error": ..., "status": <the status it would have had> }`.
+
 Request fields:
 
 | Field | Required | Description |

@@ -113,6 +113,13 @@ function hasToolErrors(messages: ChatMessage[]): boolean {
     return lastToolPart?.state === TOOL_ERROR_STATE
 }
 
+/** Parts of a turn that drew or changed the diagram */
+const DIAGRAM_TOOL_PARTS = new Set([
+    "tool-display_diagram",
+    "tool-edit_diagram",
+    "tool-append_diagram",
+])
+
 export default function ChatPanel({
     isVisible,
     onToggleVisibility,
@@ -136,6 +143,8 @@ export default function ChatPanel({
     } = useDiagram()
 
     const dict = useDictionary()
+    // handleRegenerate is defined below useChat, whose callbacks need it
+    const regenerateRef = useRef<(messageIndex: number) => void>(() => {})
 
     const onFetchChart = (saveToHistory = true) => {
         return Promise.race([
@@ -393,13 +402,26 @@ export default function ChatPanel({
             }
         },
         onFinish: ({ message }) => {
-            // Track actual token usage from server metadata
             const metadata = message?.metadata as
                 | Record<string, unknown>
                 | undefined
-
-            // DEBUG: Log finish reason to diagnose truncation
-            console.log("[onFinish] finishReason:", metadata?.finishReason)
+            // Cut off by the output limit before any diagram call (often all
+            // of it went to thinking): the user would otherwise see nothing
+            const drew = message?.parts?.some((part) =>
+                DIAGRAM_TOOL_PARTS.has(part.type),
+            )
+            if (metadata?.finishReason === "length" && !drew) {
+                toast.error(dict.chat.outputTruncated, {
+                    duration: 10_000,
+                    action: {
+                        label: dict.chat.retry,
+                        onClick: () =>
+                            regenerateRef.current(
+                                messagesRef.current.length - 1,
+                            ),
+                    },
+                })
+            }
         },
         sendAutomaticallyWhen: ({ messages }) => {
             const isInContinuationMode = partialXmlRef.current.length > 0
@@ -884,6 +906,7 @@ export default function ChatPanel({
         return userText
     }
 
+    regenerateRef.current = (index) => void handleRegenerate(index)
     const handleRegenerate = async (messageIndex: number) => {
         const isProcessing = status === "streaming" || status === "submitted"
         if (isProcessing) return

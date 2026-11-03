@@ -252,6 +252,99 @@ test.describe("AI edits on the same-origin editor", () => {
         expect(after.undoLength).toBe(before.undoLength)
         expect(after.enabled).toBe(true)
     })
+
+    test("a cell cut off in a streaming edit never reaches the canvas", async ({
+        page,
+    }) => {
+        await seedDiagram(page, ONE_BOX)
+        const cell = (id: string, x: number) =>
+            `<mxCell id="${id}" value="${id}" style="rounded=1;" vertex="1" parent="1"><mxGeometry x="${x}" y="200" width="120" height="60" as="geometry"/></mxCell>`
+        const input = {
+            operations: [
+                {
+                    operation: "add",
+                    cell_id: "first",
+                    new_xml: cell("first", 40),
+                },
+                {
+                    operation: "add",
+                    cell_id: "second",
+                    new_xml: cell("second", 400),
+                },
+            ],
+        }
+        // The stream pauses inside the second cell: its start tag has
+        // arrived, its geometry has not
+        const text = JSON.stringify(input)
+        const cut = text.indexOf("<mxGeometry", text.indexOf('id=\\"second'))
+        const turn = toolCallTurn("edit_diagram", input, { pieces: 1 })
+        const toolCallId = (turn[2].chunk as { toolCallId: string }).toolCallId
+        const delta = (inputTextDelta: string, delayMs: number) => ({
+            chunk: { type: "tool-input-delta", toolCallId, inputTextDelta },
+            delayMs,
+        })
+        await mockChat(page, [
+            [
+                ...turn.slice(0, 3),
+                delta(text.slice(0, cut), 100),
+                delta(text.slice(cut), 2000),
+                ...turn.slice(4),
+            ],
+        ])
+        await openApp(page)
+        // Watch the canvas while the edit streams: a cell may only appear
+        // whole, never as a vertex without its geometry
+        await page.evaluate(() => {
+            const w = (document.querySelector("iframe") as HTMLIFrameElement)
+                .contentWindow as any
+            const graph = w.__adioEditorUi.editor.graph
+            w.__partialSeen = 0
+            setInterval(() => {
+                const second = graph.model.getCell("second")
+                if (second && second.geometry?.x !== 400) w.__partialSeen++
+            }, 20)
+        })
+        await sendAndWait(page, "add two boxes")
+        expect((await canvasState(page)).labels).toEqual([
+            "USER BOX",
+            "first",
+            "second",
+        ])
+        const partial = await page.evaluate(
+            () =>
+                (
+                    (document.querySelector("iframe") as HTMLIFrameElement)
+                        .contentWindow as any
+                ).__partialSeen,
+        )
+        expect(partial).toBe(0)
+    })
+
+    test("output cut off before any diagram tells the user and offers a retry", async ({
+        page,
+    }) => {
+        await mockChat(page, [
+            [
+                { chunk: { type: "start" } },
+                { chunk: { type: "start-step" } },
+                { chunk: { type: "finish-step" } },
+                {
+                    chunk: {
+                        type: "finish",
+                        messageMetadata: { finishReason: "length" },
+                    },
+                },
+            ],
+        ])
+        await openApp(page)
+        await sendAndWait(page, "draw a huge diagram")
+        await expect(
+            page.getByText(
+                "The model ran out of output before it drew anything",
+            ),
+        ).toBeVisible()
+        await expect(page.getByRole("button", { name: "Retry" })).toBeVisible()
+    })
 })
 
 test("crossing the mobile breakpoint keeps the canvas usable", async ({
