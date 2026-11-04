@@ -34,6 +34,7 @@ import {
     wrapWithObserve,
 } from "@/lib/langfuse"
 import { classifyLLMError } from "@/lib/llm-errors"
+import { addReplyUsage, replyUsageOf } from "@/lib/reply-usage"
 import { withHeartbeat } from "@/lib/stream-heartbeat"
 import { getSystemPrompt } from "@/lib/system-prompts"
 import {
@@ -188,6 +189,7 @@ function createCachedStreamResponse(xml: string): Response {
 
 // Inner handler function
 async function handleChatRequest(req: Request): Promise<Response> {
+    const startedAt = Date.now()
     const {
         messages,
         xml,
@@ -786,11 +788,23 @@ Example: If previous output ended with '<mxCell id="x" style="rounded=1', contin
             },
             messageMetadata: ({ part }) => {
                 if (part.type === "finish") {
-                    const usage = (part as any).totalUsage
-                    // AI SDK 6 provides totalTokens directly
+                    const usage = part.totalUsage
+                    // A turn's later requests continue the last assistant
+                    // message, which carries what the earlier ones used
+                    const last = messages.at(-1)
+                    const usedBefore =
+                        last?.role === "assistant"
+                            ? replyUsageOf(last.metadata)
+                            : undefined
                     return {
                         totalTokens: usage?.totalTokens ?? 0,
-                        finishReason: (part as any).finishReason,
+                        finishReason: part.finishReason,
+                        // The answer's tokens and time, shown under it
+                        usage: addReplyUsage(
+                            usedBefore,
+                            usage,
+                            Date.now() - startedAt,
+                        ),
                     }
                 }
                 return undefined

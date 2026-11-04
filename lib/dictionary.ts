@@ -28,6 +28,13 @@ export const dictionary = {
         openrouter: "OpenRouter",
     },
     chat: {
+        usageSummary: "In {input} · Out {output} · {seconds}s",
+        usageInput: "Input",
+        usageCacheRead: "From cache",
+        usageOutput: "Output",
+        usageReasoning: "Thinking",
+        usageTime: "Time",
+        usageTokenUnit: "tokens",
         outputTruncated:
             "The model ran out of output before it drew anything. Try again, or ask for a smaller diagram.",
         retry: "Retry",

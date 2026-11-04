@@ -26,11 +26,13 @@ import {
     ReasoningContent,
     ReasoningTrigger,
 } from "@/components/ai-elements/reasoning"
+import { ReplyUsageNote } from "@/components/reply-usage"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { aiPageModel, placeOnAiPage } from "@/lib/ai-page"
 import { getApiEndpoint } from "@/lib/base-path"
 import { validateEachPage } from "@/lib/diagram-pages"
 import { restoreImageData, restoreOperationImages } from "@/lib/embedded-images"
+import { type ReplyUsage, replyUsageOf } from "@/lib/reply-usage"
 import {
     applyDiagramOperations,
     convertToLegalXml,
@@ -1501,6 +1503,16 @@ export function ChatMessageDisplay({
                                             >
                                                 <ThumbsDown className="h-3.5 w-3.5" />
                                             </button>
+                                            {/* None on cached examples and answers saved before it was recorded */}
+                                            {replyUsageOf(message.metadata) && (
+                                                <ReplyUsageNote
+                                                    usage={
+                                                        replyUsageOf(
+                                                            message.metadata,
+                                                        ) as ReplyUsage
+                                                    }
+                                                />
+                                            )}
                                         </div>
                                     )}
                                 </div>
