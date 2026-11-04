@@ -26,6 +26,7 @@ import { ModelConfigDialog } from "@/components/model-config-dialog"
 import { ResetWarningModal } from "@/components/reset-warning-modal"
 import { SettingsDialog } from "@/components/settings-dialog"
 import { useDiagram } from "@/contexts/diagram-context"
+import { useCanvasSelection } from "@/hooks/use-canvas-selection"
 import { useDiagramToolHandlers } from "@/hooks/use-diagram-tool-handlers"
 import { useDictionary } from "@/hooks/use-dictionary"
 import { getSelectedAIConfig, useModelConfig } from "@/hooks/use-model-config"
@@ -37,6 +38,7 @@ import type { CanvasNote } from "@/lib/canvas-note"
 import { keepLatestScreenshot } from "@/lib/diagram-screenshot"
 import { rememberImages } from "@/lib/embedded-images"
 import { isPdfFile, isTextFile } from "@/lib/pdf-utils"
+import { type SelectedCell, selectionOf } from "@/lib/selection"
 import { type FileData, useFileProcessor } from "@/lib/use-file-processor"
 import { cn, formatXML } from "@/lib/utils"
 import { ChatMessageDisplay } from "./chat-message-display"
@@ -183,6 +185,7 @@ export default function ChatPanel({
     // Model configuration hook
     const modelConfig = useModelConfig()
     const [input, setInput] = useState("")
+    const { selection, dismiss: dismissSelection } = useCanvasSelection()
     const [showNewChatDialog, setShowNewChatDialog] = useState(false)
     const [serverModels, setServerModels] = useState<string[]>([])
     // "auto" defers to the server's BEDROCK_REASONING_EFFORT default.
@@ -702,7 +705,9 @@ export default function ChatPanel({
                 xmlSnapshotsRef.current.set(messageIndex, chartXml)
                 saveXmlSnapshots()
 
-                sendChatMessage(parts, chartXml, sessionId)
+                sendChatMessage(parts, chartXml, sessionId, selection)
+                // Sent with this message; a selection changed meanwhile stays
+                dismissSelection()
 
                 // Token count is tracked in onFinish with actual server usage
                 setInput("")
@@ -781,7 +786,12 @@ export default function ChatPanel({
     }
 
     // Send chat message with headers
-    const sendChatMessage = (parts: any, xml: string, sessionId: string) => {
+    const sendChatMessage = (
+        parts: any,
+        xml: string,
+        sessionId: string,
+        selectedCells: SelectedCell[] = [],
+    ) => {
         // The AI works on the page the user is on, for the whole turn
         startAiPageTurn()
         // Reset all retry/continuation state on user-initiated message
@@ -819,7 +829,14 @@ export default function ChatPanel({
         }
 
         sendMessage(
-            { parts, metadata: { canvas } },
+            {
+                parts,
+                metadata: {
+                    canvas,
+                    // Kept with the message, so regenerate and edit send it again
+                    ...(selectedCells.length > 0 && { selectedCells }),
+                },
+            },
             {
                 body: {
                     // The AI reads and writes the page the user is on; it is told the
@@ -959,7 +976,12 @@ export default function ChatPanel({
         })
 
         // Now send the message after state is guaranteed to be updated
-        sendChatMessage(userParts, savedXml, sessionId)
+        sendChatMessage(
+            userParts,
+            savedXml,
+            sessionId,
+            selectionOf(userMessage.metadata),
+        )
     }
 
     const handleEditMessage = async (messageIndex: number, newText: string) => {
@@ -1002,7 +1024,12 @@ export default function ChatPanel({
         })
 
         // Now send the edited message after state is guaranteed to be updated
-        sendChatMessage(newParts, savedXml, sessionId)
+        sendChatMessage(
+            newParts,
+            savedXml,
+            sessionId,
+            selectionOf(message.metadata),
+        )
     }
 
     // Collapsed view (desktop only)
@@ -1169,6 +1196,8 @@ export default function ChatPanel({
                     showUnvalidatedModels={modelConfig.showUnvalidatedModels}
                     serverModels={serverModels}
                     reasoningEffort={reasoningEffort}
+                    selection={selection}
+                    onDismissSelection={dismissSelection}
                     onReasoningEffortChange={(v) => {
                         setReasoningEffort(v)
                         localStorage.setItem(STORAGE_REASONING_EFFORT_KEY, v)

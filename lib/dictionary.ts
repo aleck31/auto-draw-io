@@ -56,6 +56,14 @@ export const dictionary = {
         editMessage: "Edit message",
         saveAndSubmit: "Save & Submit",
     },
+    selection: {
+        one: "Selected: {label}",
+        many: "{count} cells selected",
+        shape: "a shape",
+        connector: "a connector",
+        remove: "Don't send the selection",
+        placeholder: "Describe the change to the selection...",
+    },
     settings: {
         title: "Settings",
         description: "Configure your application settings.",

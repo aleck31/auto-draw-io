@@ -12,6 +12,7 @@
  * lib/chat-helpers.ts, Apache-2.0).
  */
 import { hideImageData, imageRefNote } from "@/lib/embedded-images"
+import { selectionNoteText } from "@/lib/selection"
 
 export type CanvasNote =
     | { xml: string; pages?: string[]; page?: number }
@@ -97,7 +98,8 @@ export function withoutOldAttachments<T extends UIMessageLike>(
 }
 
 /**
- * Each user message with its canvas note appended as a separate text part.
+ * Each user message with its canvas note appended as a separate text part,
+ * followed by the cells the user had selected (lib/selection.ts), if any.
  * A message from before canvas notes has none: the newest one then gets the
  * canvas of the request, the older ones only the language note.
  */
@@ -114,12 +116,19 @@ export function withCanvasNotes<T extends UIMessageLike>(
         const stored = (message.metadata as { canvas?: CanvasNote } | undefined)
             ?.canvas
         const note = stored ?? (i === newest ? requestCanvas : undefined)
+        const selected = selectionNoteText(
+            (message.metadata as { selectedCells?: unknown } | undefined)
+                ?.selectedCells,
+        )
         return {
             ...message,
             parts: [
                 ...(message.parts ?? []),
                 // A new paragraph: some providers join a message's text parts
-                { type: "text", text: `\n\n${canvasNoteText(note)}` },
+                {
+                    type: "text",
+                    text: `\n\n${canvasNoteText(note)}${selected ? `\n\n${selected}` : ""}`,
+                },
             ],
         }
     })

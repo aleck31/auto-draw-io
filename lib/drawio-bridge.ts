@@ -11,6 +11,7 @@
  * Adapted from next-ai-draw-io (lib/drawio/editor-bridge.ts, Apache-2.0).
  */
 import { diffPageModels } from "@/lib/diagram-diff"
+import { plainLabel, type SelectedCell } from "@/lib/selection"
 
 type EditorUi = any
 type FrameWindow = any
@@ -79,10 +80,14 @@ export function attachEditor(editorUi: EditorUi, frameWindow: FrameWindow) {
         // ignore
     }
     installLockGuards()
+    stopSelectionWatch = watchSelection()
 }
 
 export function detachEditor() {
     clearHighlights()
+    stopSelectionWatch?.()
+    stopSelectionWatch = null
+    setSelection([])
     ui = null
     win = null
     previewBase = null
@@ -91,6 +96,82 @@ export function detachEditor() {
 
 export function hasEditor(): boolean {
     return !!ui
+}
+
+// ---------------------------------------------------------------------------
+// The selection, for sending it with a chat message
+// ---------------------------------------------------------------------------
+
+const NO_SELECTION: SelectedCell[] = []
+let selection = NO_SELECTION
+const selectionListeners = new Set<() => void>()
+let stopSelectionWatch: (() => void) | null = null
+
+function setSelection(next: SelectedCell[]) {
+    const same =
+        next.length === selection.length &&
+        next.every(
+            (c, i) =>
+                c.id === selection[i].id &&
+                c.label === selection[i].label &&
+                c.isEdge === selection[i].isEdge,
+        )
+    if (same) return
+    selection = next.length === 0 ? NO_SELECTION : next
+    for (const listener of selectionListeners) listener()
+}
+
+function readSelection(): SelectedCell[] {
+    const g = graph()
+    if (!g) return NO_SELECTION
+    return (g.getSelectionCells() as any[])
+        .filter((cell) => cell?.id)
+        .map((cell) => {
+            let text = ""
+            try {
+                text = String(g.convertValueToString(cell) ?? "")
+            } catch {
+                // ignore
+            }
+            return {
+                id: String(cell.id),
+                label: plainLabel(text),
+                isEdge: !!g.model.isEdge(cell),
+            }
+        })
+}
+
+/** Follows selection changes, and label edits of selected cells */
+function watchSelection(): (() => void) | null {
+    const g = graph()
+    const mxEvent = win?.mxEvent
+    const selectionModel = g?.getSelectionModel?.()
+    if (!selectionModel?.addListener || !g.model?.addListener || !mxEvent) {
+        warnOnce("selection", "selection model not found")
+        return null
+    }
+    const sync = () => setSelection(readSelection())
+    selectionModel.addListener(mxEvent.CHANGE, sync)
+    g.model.addListener(mxEvent.CHANGE, sync)
+    sync()
+    return () => {
+        selectionModel.removeListener(sync)
+        g.model.removeListener(sync)
+    }
+}
+
+/** The cells selected on the canvas; the same array until it changes */
+export function getSelection(): SelectedCell[] {
+    return selection
+}
+
+export function getNoSelection(): SelectedCell[] {
+    return NO_SELECTION
+}
+
+export function subscribeSelection(listener: () => void): () => void {
+    selectionListeners.add(listener)
+    return () => selectionListeners.delete(listener)
 }
 
 // ---------------------------------------------------------------------------
@@ -522,6 +603,7 @@ export function missingInternals(): string[] {
         "undoManager.undoableEditHappened":
             ui?.editor?.undoManager?.undoableEditHappened,
         "graph.isEnabled": graph()?.isEnabled,
+        "graph.getSelectionModel": graph()?.getSelectionModel,
     }
     return Object.entries(checks)
         .filter(([, value]) => typeof value !== "function")

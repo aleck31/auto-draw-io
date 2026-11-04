@@ -16,6 +16,7 @@ import { ErrorToast } from "@/components/error-toast"
 import { HistoryDialog } from "@/components/history-dialog"
 import { ModelSelector } from "@/components/model-selector"
 import { SaveDialog } from "@/components/save-dialog"
+import { SelectionChip } from "@/components/selection-chip"
 import { Button } from "@/components/ui/button"
 import {
     Select,
@@ -34,6 +35,7 @@ import { useDiagram } from "@/contexts/diagram-context"
 import { useDictionary } from "@/hooks/use-dictionary"
 import { formatMessage } from "@/lib/format-message"
 import { isPdfFile, isTextFile } from "@/lib/pdf-utils"
+import type { SelectedCell } from "@/lib/selection"
 import type { FlattenedModel } from "@/lib/types/model-config"
 import { isRealDiagram } from "@/lib/utils"
 import { FilePreviewList } from "./file-preview-list"
@@ -170,6 +172,9 @@ interface ChatInputProps {
     serverModels?: string[]
     reasoningEffort?: string
     onReasoningEffortChange?: (value: string) => void
+    /** Canvas cells that go with the next message */
+    selection?: SelectedCell[]
+    onDismissSelection?: () => void
 }
 
 export function ChatInput({
@@ -192,6 +197,8 @@ export function ChatInput({
     serverModels = [],
     reasoningEffort = "auto",
     onReasoningEffortChange = () => {},
+    selection = [],
+    onDismissSelection,
 }: ChatInputProps) {
     const dict = useDictionary()
     const {
@@ -356,13 +363,25 @@ export function ChatInput({
                 </div>
             )}
             <div className="relative rounded-2xl border border-border bg-background shadow-sm focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/50 transition-all duration-200">
+                {selection.length > 0 && !isDisabled && (
+                    <div className="px-3 pt-2.5">
+                        <SelectionChip
+                            cells={selection}
+                            onRemove={onDismissSelection}
+                        />
+                    </div>
+                )}
                 <Textarea
                     ref={textareaRef}
                     value={input}
                     onChange={handleChange}
                     onKeyDown={handleKeyDown}
                     onPaste={handlePaste}
-                    placeholder={dict.chat.placeholder}
+                    placeholder={
+                        selection.length > 0
+                            ? dict.selection.placeholder
+                            : dict.chat.placeholder
+                    }
                     disabled={isDisabled}
                     aria-label="Chat input"
                     className="min-h-[60px] max-h-[200px] resize-none border-0 bg-transparent px-4 py-3 text-sm focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/60"

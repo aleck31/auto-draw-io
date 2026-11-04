@@ -27,12 +27,14 @@ import {
     ReasoningTrigger,
 } from "@/components/ai-elements/reasoning"
 import { ReplyUsageNote } from "@/components/reply-usage"
+import { SelectionChip } from "@/components/selection-chip"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { aiPageModel, placeOnAiPage } from "@/lib/ai-page"
 import { getApiEndpoint } from "@/lib/base-path"
 import { validateEachPage } from "@/lib/diagram-pages"
 import { restoreImageData, restoreOperationImages } from "@/lib/embedded-images"
 import { type ReplyUsage, replyUsageOf } from "@/lib/reply-usage"
+import { selectionOf } from "@/lib/selection"
 import {
     applyDiagramOperations,
     convertToLegalXml,
@@ -969,6 +971,17 @@ export function ChatMessageDisplay({
                                         </div>
                                     )}
                                 <div className="max-w-[85%] min-w-0">
+                                    {message.role === "user" &&
+                                        selectionOf(message.metadata).length >
+                                            0 && (
+                                            <div className="mb-1.5 flex justify-end">
+                                                <SelectionChip
+                                                    cells={selectionOf(
+                                                        message.metadata,
+                                                    )}
+                                                />
+                                            </div>
+                                        )}
                                     {/* Edit mode for user messages */}
                                     {isEditing && message.role === "user" ? (
                                         <div className="flex flex-col gap-2">
