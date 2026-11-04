@@ -5,10 +5,9 @@
 
 ## Usage
 
-Two shape kinds — pick by what you are drawing.
+Three icon kinds, picked by what you are drawing. Always set `fillColor`: without it the shape is plain black. Keep `verticalLabelPosition=bottom;verticalAlign=top;` on every icon: without them the label is drawn over the icon.
 
-**1. Service tile** (`resourceIcon`): white glyph on a category-colored tile.
-`fillColor` = the service's AWS category color.
+**1. Service icon** (`resourceIcon`): a white glyph on a tile in the service's category colour, for a service as a whole (Amazon EC2, AWS Lambda, Amazon S3).
 
 ```xml
 <mxCell value="label" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.{shape};fillColor=#ED7100;strokeColor=#ffffff;verticalLabelPosition=bottom;verticalAlign=top;align=center;" vertex="1" parent="1">
@@ -16,21 +15,40 @@ Two shape kinds — pick by what you are drawing.
 </mxCell>
 ```
 
-Category colors: Compute / Containers / Media `#ED7100`, Storage / IoT `#7AA116`,
-Databases / Developer-Tools `#C925D1`, Networking-Content-Delivery / Analytics
-`#8C4FFF`, Security-Identity / Front-End-Web-Mobile `#DD344C`,
-Application-Integration / Management-Governance `#E7157B`,
-Artificial-Intelligence / Migration `#01A88D`.
+**2. Resource icon**: the glyph alone in the category colour, no tile, for a specific resource of a service (a load balancer, a Lambda function, an S3 bucket): `shape=mxgraph.aws4.{shape};fillColor=#8C4FFF;strokeColor=none;verticalLabelPosition=bottom;verticalAlign=top;align=center;` at 78x78.
 
-**2. Plain shape** (resources, actors, generic elements — e.g. `users`,
-`internet`): single-color line art, no tile. Use AWS Squid Ink:
+Prefer the specific resource icon to the generic service icon. An Application Load Balancer (also what Terraform's `aws_lb` creates by default) is `shape=mxgraph.aws4.application_load_balancer;fillColor=#8C4FFF;strokeColor=none;verticalLabelPosition=bottom;verticalAlign=top;align=center;` at 78x78; `network_load_balancer` and `gateway_load_balancer` work the same way. Use `resIcon=mxgraph.aws4.elastic_load_balancing` only when the type is unknown.
 
+**3. General resource** (actors and things not tied to a service: `users`, `client`, `mobile_client`, `internet`, `traditional_server`): the glyph alone in Squid Ink: `shape=mxgraph.aws4.{shape};fillColor=#232F3D;strokeColor=none;verticalLabelPosition=bottom;verticalAlign=top;align=center;`.
+
+Category colours, for service tiles and resource icons alike: Compute / Containers / Media `#ED7100`, Storage / IoT `#7AA116`, Databases / Developer Tools `#C925D1`, Networking & Content Delivery / Analytics `#8C4FFF`, Security & Identity / Front-End Web & Mobile `#DD344C`, Application Integration / Management & Governance `#E7157B`, Artificial Intelligence / Migration `#01A88D`.
+
+Never wrap a resource icon or a general resource in `resourceIcon`, and never draw a service icon without it.
+
+### Groups
+
+Draw the AWS Cloud, Region, VPC, subnets and other boundaries as group containers, not plain rectangles. Shapes inside a group get `parent="<group id>"` and positions relative to the group.
+
+```xml
+<mxCell id="vpc" value="VPC" style="shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_vpc2;strokeColor=#8C4FFF;fillColor=none;fontColor=#AAB7B8;verticalAlign=top;align=left;spacingLeft=30;container=1;collapsible=0;pointerEvents=0;" vertex="1" parent="1">
+  <mxGeometry x="0" y="0" width="400" height="300" as="geometry" />
+</mxCell>
 ```
-shape=mxgraph.aws4.{shape};fillColor=#232F3E;
-```
 
-Always set `fillColor` — these shapes default to plain black, which looks
-off-brand. Never wrap a plain shape in `resourceIcon` (and vice versa).
+For the other groups keep `shape=mxgraph.aws4.group;verticalAlign=top;align=left;spacingLeft=30;container=1;collapsible=0;pointerEvents=0;` and change the icon and colours:
+
+- AWS Cloud: `grIcon=mxgraph.aws4.group_aws_cloud_alt;strokeColor=#232F3E;fillColor=none;fontColor=#232F3E;`
+- Region: `grIcon=mxgraph.aws4.group_region;strokeColor=#00A4A6;fillColor=none;fontColor=#147EBA;dashed=1;`
+- Public subnet: `grIcon=mxgraph.aws4.group_security_group;grStroke=0;strokeColor=#7AA116;fillColor=#F2F6E8;fontColor=#248814;`
+- Private subnet: `grIcon=mxgraph.aws4.group_security_group;grStroke=0;strokeColor=#00A4A6;fillColor=#E6F6F7;fontColor=#147EBA;`
+- AWS Account: `grIcon=mxgraph.aws4.group_account;strokeColor=#CD2264;fillColor=none;fontColor=#CD2264;`
+- Corporate data center: `grIcon=mxgraph.aws4.group_corporate_data_center;strokeColor=#7D8998;fillColor=none;fontColor=#5A6C86;`
+
+Other boundaries:
+
+- Auto Scaling group (icon centred on the top edge): `shape=mxgraph.aws4.groupCenter;grIcon=mxgraph.aws4.group_auto_scaling_group;grStroke=1;strokeColor=#D86613;fillColor=none;verticalAlign=top;align=center;fontColor=#D86613;dashed=1;spacingTop=25;container=1;collapsible=0;pointerEvents=0;`
+- Availability Zone (no icon): `fillColor=none;strokeColor=#147EBA;dashed=1;verticalAlign=top;fontColor=#147EBA;container=1;collapsible=0;pointerEvents=0;`
+- Security group (no icon): `fillColor=none;strokeColor=#DD3522;verticalAlign=top;fontColor=#DD3522;container=1;collapsible=0;pointerEvents=0;`
 
 ## Architecture diagram design guide
 
