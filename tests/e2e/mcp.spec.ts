@@ -143,6 +143,87 @@ test.describe("MCP tools for agents that write the XML", () => {
         expect(traversal.status()).toBe(404)
     })
 
+    test("references to missing ids are refused, listed together", async ({
+        request,
+    }) => {
+        const dangling = await callTool(request, "create_diagram", {
+            xml: `${cell("a", "A", 40)}<mxCell id="e" edge="1" parent="1" source="a" target="ghost"><mxGeometry relative="1" as="geometry"/></mxCell>`,
+        })
+        expect(dangling.isError).toBe(true)
+        expect(textOf(dangling)).toContain(
+            'cell "e": target "ghost" does not exist',
+        )
+
+        const id = idOf(
+            await callTool(request, "create_diagram", {
+                xml: cell("web", "Web", 40) + cell("db", "DB", 260) + EDGE,
+            }),
+        )
+        const refused = await callTool(request, "edit_cells", {
+            diagram_id: id,
+            base_revision: 1,
+            operations: [
+                { operation: "delete", cell_id: "nope" },
+                {
+                    operation: "add",
+                    cell_id: "child",
+                    new_xml: cell("child", "Child", 0).replace(
+                        'parent="1"',
+                        'parent="ghost"',
+                    ),
+                },
+                {
+                    operation: "add",
+                    cell_id: "e2",
+                    new_xml:
+                        '<mxCell id="e2" edge="1" parent="1" source="web" target="ghost2"><mxGeometry relative="1" as="geometry"/></mxCell>',
+                },
+            ],
+        })
+        expect(refused.isError).toBe(true)
+        const problems = textOf(refused)
+        expect(problems).toContain("still at revision 1")
+        expect(problems).toContain("delete nope: no cell with this id")
+        expect(problems).toContain(
+            'cell "child": parent "ghost" does not exist',
+        )
+        expect(problems).toContain('cell "e2": target "ghost2" does not exist')
+
+        // Deleting a cell takes its connector along; deleting that connector
+        // in the same batch is no problem
+        const cascade = await callTool(request, "edit_cells", {
+            diagram_id: id,
+            base_revision: 1,
+            operations: [
+                { operation: "delete", cell_id: "db" },
+                { operation: "delete", cell_id: "e1" },
+            ],
+        })
+        expect(cascade.isError).toBeFalsy()
+
+        // A dangling reference the diagram already has does not block other edits
+        const { mxfile } = await (
+            await request.get(`/api/diagram/${id}`)
+        ).json()
+        const broken = mxfile.replace(
+            '<mxCell id="web"',
+            '<mxCell id="old" edge="1" parent="1" source="web" target="gone"><mxGeometry relative="1" as="geometry"/></mxCell><mxCell id="web"',
+        )
+        expect(
+            (
+                await request.put(`/api/diagram/${id}`, {
+                    data: { xml: broken, baseRevision: 2 },
+                })
+            ).ok(),
+        ).toBe(true)
+        const unrelated = await callTool(request, "edit_cells", {
+            diagram_id: id,
+            base_revision: 3,
+            operations: [add("cache", "Cache", 480)],
+        })
+        expect(unrelated.isError).toBeFalsy()
+    })
+
     test("the drawing guide speaks of the MCP tools", async ({ request }) => {
         const guide = textOf(await callTool(request, "get_drawing_guide", {}))
         expect(guide).toContain("create_diagram")

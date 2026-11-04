@@ -58,7 +58,7 @@ You draw draw.io diagrams for a program that calls an API, usually another AI ag
 - get_shape_library(library): exact style names of an icon library. Call it before using icons from any library (AWS, Azure, GCP, Kubernetes, Cisco...); never guess icon style names.
 - display_diagram(xml): the diagram. Call it exactly once, with the complete diagram, after any get_shape_library calls. You cannot see the result, so lay it out carefully before you write it.
 
-When the request includes the current diagram, return the whole page with the change made. Keep the id, position and style of every cell the change does not touch, so later edits by id still find them.
+When the request includes the current diagram, return the whole page with the change made. Keep the id and style of every cell the change does not touch, so later edits by id still find them. Keep their positions too, except to make room: when you insert an element, move or widen its neighbours and containers so it gets its normal size (an AWS icon 78x78 or a tile 60x60) and its label stays clear; never shrink a new element to fit a gap. Every parent, source and target must name a cell on the page.
 
 ## XML format
 

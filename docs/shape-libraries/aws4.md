@@ -61,6 +61,8 @@ structure: AWS Cloud -> Region -> VPC -> subnets (plus account boundaries,
 on-prem data centers, Auto Scaling groups). A reader learns more from "these
 five services form the ingestion tier" than from ten arrows between them.
 Prefer flow BETWEEN tiers/groups over flow between individual nodes.
+Global services (CloudFront, Route 53, IAM, WAF on CloudFront, Global Accelerator)
+sit inside AWS Cloud but outside every Region box.
 
 **Naming:**
 - Label each service node with the official AWS service name (`AWS Lambda`, not

@@ -18,6 +18,7 @@ import {
     placeOnPage,
     validateEachPage,
 } from "@/lib/diagram-pages"
+import { newDanglingReferences } from "@/lib/diagram-references"
 import {
     createDiagram,
     getCurrentDiagram,
@@ -338,12 +339,20 @@ export async function generateDiagram({
     const finalMxfile = currentXml
         ? placeOnPage(drawn.mxfile, currentXml, null)
         : drawn.mxfile
+    // The model can't be asked again here: tell the caller what it left dangling
+    const dangling = newDanglingReferences(
+        currentXml ? pageModelXml(currentXml, null) : null,
+        pageModelXml(finalMxfile, null),
+    )
     return {
         xml: capturedXml,
         ...saveDiagram(finalMxfile, {
             diagramId,
             baseRevision,
-            notes: drawn.fixes,
+            notes: [
+                ...drawn.fixes,
+                ...dangling.map((p) => `references no cell: ${p}`),
+            ],
         }),
     }
 }

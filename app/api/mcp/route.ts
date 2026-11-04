@@ -16,6 +16,10 @@ import {
     validDiagramXml,
 } from "@/lib/agent-diagram"
 import { listPages, pageModelXml, placeOnPage } from "@/lib/diagram-pages"
+import {
+    danglingReferences,
+    newDanglingReferences,
+} from "@/lib/diagram-references"
 import { renderDiagramForModel } from "@/lib/diagram-render"
 import { SCREENSHOT_CHECKLIST } from "@/lib/diagram-screenshot"
 import {
@@ -202,6 +206,19 @@ function restoreFromAnyDiagram(xml: string): string {
     return restoreImageData(xml, ...diagramsWithImages())
 }
 
+/** References to missing ids on each page of a document */
+function documentReferenceProblems(mxfile: string): string[] {
+    const pages = listPages(mxfile)
+    if (pages.length <= 1) {
+        return danglingReferences(pageModelXml(mxfile, null))
+    }
+    return pages.flatMap((page) =>
+        danglingReferences(pageModelXml(mxfile, page.id)).map(
+            (problem) => `page "${page.name}": ${problem}`,
+        ),
+    )
+}
+
 /** The first page of a stored diagram as XML, with a note on the other pages */
 function pageForAgent(xml: string): string {
     const pages = listPages(xml)
@@ -251,7 +268,7 @@ function buildServer(): McpServer {
         {
             title: "Create a diagram from XML",
             description:
-                "Store a new diagram you wrote as draw.io XML: bare mxCell elements (most common), an <mxGraphModel> or an <mxfile>. The XML is validated and small problems are fixed; returns the diagram id, version 1 and links. See get_drawing_guide for the format.",
+                "Store a new diagram you wrote as draw.io XML: bare mxCell elements (most common), an <mxGraphModel> or an <mxfile>. The XML is validated and small problems are fixed; a parent, source or target naming no cell is refused with the list of them. Returns the diagram id, version 1 and links. See get_drawing_guide for the format.",
             inputSchema: z.object({
                 xml: z.string().min(1).max(500_000).describe("The diagram XML"),
                 screenshot: SCREENSHOT_SCHEMA,
@@ -260,6 +277,14 @@ function buildServer(): McpServer {
         async ({ xml, screenshot }) => {
             try {
                 const valid = validDiagramXml(restoreFromAnyDiagram(xml))
+                const problems = documentReferenceProblems(valid.mxfile)
+                if (problems.length) {
+                    return toError(
+                        new Error(
+                            `Nothing was stored. These references name no cell:\n${problems.map((p) => `- ${p}`).join("\n")}`,
+                        ),
+                    )
+                }
                 const saved = saveDiagram(valid.mxfile, { notes: valid.fixes })
                 return await savedResult(saved, "Created", screenshot)
             } catch (error) {
@@ -273,7 +298,7 @@ function buildServer(): McpServer {
         {
             title: "Edit cells of a diagram",
             description:
-                "Change a stored diagram cell by cell: update (replace a cell with a whole new mxCell, same id), add (append a cell) or delete (a cell, its children and the connectors attached to it). The operations apply together or not at all; on failure each problem is listed and nothing changes. Refused when the diagram changed after base_revision (the user may edit it in the browser): then read it with get_diagram and redo the change. Saves the result as the next version.",
+                "Change a stored diagram cell by cell: update (replace a cell with a whole new mxCell, same id), add (append a cell) or delete (a cell, its children and the connectors attached to it). The operations apply together or not at all; on failure each problem is listed and nothing changes, including a delete of an id the diagram lacks and a parent, source or target naming no cell. Refused when the diagram changed after base_revision (the user may edit it in the browser): then read it with get_diagram and redo the change. Saves the result as the next version.",
             inputSchema: z.object({
                 diagram_id: z.string().describe("Id of the diagram to edit"),
                 base_revision: z
@@ -323,6 +348,29 @@ function buildServer(): McpServer {
                         "The stored diagram has no page to edit.",
                     )
                 }
+                // A delete must name a cell of the page or one the batch adds;
+                // a cell an earlier delete took with it (children, connectors)
+                // is fine
+                const existing = new Set(
+                    [
+                        ...page.matchAll(
+                            /<(?:mxCell|object|UserObject)\b[^>]*\sid="([^"]+)"/g,
+                        ),
+                    ].map((m) => m[1]),
+                )
+                const added = new Set(
+                    operations
+                        .filter((op) => op.operation === "add")
+                        .map((op) => op.cell_id),
+                )
+                const deleteProblems = operations
+                    .filter(
+                        (op) =>
+                            op.operation === "delete" &&
+                            !existing.has(op.cell_id) &&
+                            !added.has(op.cell_id),
+                    )
+                    .map((op) => `- delete ${op.cell_id}: no cell with this id`)
                 const { result, errors } = applyDiagramOperations(
                     page,
                     // Its pictures, and those of its earlier versions
@@ -334,15 +382,23 @@ function buildServer(): McpServer {
                         ) ?? []),
                     ),
                 )
-                if (errors.length) {
+                // References the change left pointing at no cell; ones the
+                // diagram already had don't block the edit
+                const referenceProblems = errors.length
+                    ? []
+                    : newDanglingReferences(page, result).map((p) => `- ${p}`)
+                const problems = [
+                    ...errors.map(
+                        (e) =>
+                            `- ${e.type} ${e.cellId || "(document)"}: ${e.message}`,
+                    ),
+                    ...deleteProblems,
+                    ...referenceProblems,
+                ]
+                if (problems.length) {
                     return toError(
                         new Error(
-                            `Nothing was changed; the diagram is still at revision ${current.revision}. Problems:\n${errors
-                                .map(
-                                    (e) =>
-                                        `- ${e.type} ${e.cellId || "(document)"}: ${e.message}`,
-                                )
-                                .join("\n")}`,
+                            `Nothing was changed; the diagram is still at revision ${current.revision}. Problems:\n${problems.join("\n")}`,
                         ),
                     )
                 }
