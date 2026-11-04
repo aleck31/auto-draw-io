@@ -13,7 +13,7 @@
 
 
 
-## Shapes (311)
+## Shapes (310)
 
 - `abap_business_application_platform`
 - `acms_application_configuration_manangement`
@@ -112,10 +112,10 @@
 - `dbs_database_backup`
 - `dcdn_dynamic_route_for_cdn`
 - `ddh_dedicated_host`
+- `ddos_protection`
 - `ddos-bgp`
 - `ddos-dip`
 - `ddos-pro`
-- `ddos_protection`
 - `devops`
 - `dg_database_gateway`
 - `directmail`
@@ -210,26 +210,26 @@
 - `mobile_hotfix`
 - `mobsec`
 - `mongodb`
+- `mps_apsaravideo_media_processing`
 - `mps-ai`
 - `mps-censor`
 - `mps-cover`
 - `mps-dna`
 - `mps-multimod`
 - `mps-produce`
-- `mps_apsaravideo_media_processing`
 - `mq_message_queue`
 - `mqc_mobile_quality_center`
 - `mse_microservices_engine`
 - `multi-cloud_finops`
 - `multi-mode_database_lindorm`
 - `multimediaai`
-- `mxgraph.alibaba_cloud`
 - `mysql`
 - `nas_network_attached_storage`
 - `nat_gateway`
 - `network_acl_access_control_list`
 - `nlb_network_load_balancer_01`
 - `nlb_network_load_balancer_02`
+- `nlp_natural_language_processing`
 - `nlp-address`
 - `nlp-automl`
 - `nlp-ie_text_information_extraction`
@@ -240,7 +240,6 @@
 - `nlp-sa_sentiment_analysis`
 - `nlp-tc_text_categorization`
 - `nlp-ws_word_segmentation`
-- `nlp_natural_language_processing`
 - `nls`
 - `nls-asrbag`
 - `nls-asrcustommodel`

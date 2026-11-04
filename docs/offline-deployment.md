@@ -16,6 +16,7 @@ The app drives this editor directly (AI changes are applied in place and undo in
 The integration uses draw.io internals, so the version is pinned and upgraded deliberately:
 
 1. Update `version`, `sha256` and `downloadUrl` in `scripts/drawio-version.json` (the SHA-256 is listed on the GitHub release).
-2. `npm run build && npm run test:e2e`. The "upgrade canary" test fails first if an internal the app uses was renamed or removed.
+2. `npm run build`, then `npm run shapes` to rewrite the icon lists in `docs/shape-libraries/` (what `get_shape_library` offers the model) from the new version.
+3. `npm run test:e2e`. The "upgrade canary" test fails first if an internal the app uses was renamed or removed; another fails while an icon list is out of date.
 
 A draw.io release that fixes a security issue (XSS in particular) should be adopted regardless of the pin: the editor runs on the app's origin, next to settings kept in the browser's localStorage.

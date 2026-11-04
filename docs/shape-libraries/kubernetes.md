@@ -13,13 +13,14 @@
 
 
 
-## Shapes (41)
+## Shapes (39)
 
 - `api`
 - `c_c_m`
 - `c_m`
 - `c_role`
 - `cm`
+- `control_plane`
 - `crb`
 - `crd`
 - `cronjob`
@@ -27,7 +28,6 @@
 - `ds`
 - `ep`
 - `etcd`
-- `frame`
 - `group`
 - `hpa`
 - `ing`
@@ -35,8 +35,6 @@
 - `k_proxy`
 - `kubelet`
 - `limits`
-- `master`
-- `mxgraph.kubernetes`
 - `netpol`
 - `node`
 - `ns`

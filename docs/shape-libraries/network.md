@@ -11,14 +11,12 @@
 </mxCell>
 ```
 
-## Shapes (57)
+## Shapes (56)
 
 - `biometric_reader`
-- `bus`
 - `business_center`
 - `cloud`
 - `comm_link`
-- `comm_link_edge`
 - `community`
 - `copier`
 - `desktop_pc`
@@ -35,6 +33,7 @@
 - `monitor`
 - `nas_filer`
 - `patch_panel`
+- `pc`
 - `phone_1`
 - `phone_2`
 - `printer`
