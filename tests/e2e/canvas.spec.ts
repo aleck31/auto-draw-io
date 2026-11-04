@@ -320,6 +320,41 @@ test.describe("AI edits on the same-origin editor", () => {
         expect(partial).toBe(0)
     })
 
+    test("the cells an AI change touched are marked, then the marking fades", async ({
+        page,
+    }) => {
+        await seedDiagram(page, ONE_BOX)
+        await mockChat(page, [
+            toolCallTurn("edit_diagram", {
+                operations: [
+                    {
+                        operation: "add",
+                        cell_id: "added",
+                        new_xml:
+                            '<mxCell id="added" value="Added" style="rounded=1;" vertex="1" parent="1"><mxGeometry x="300" y="40" width="120" height="60" as="geometry"/></mxCell>',
+                    },
+                ],
+            }),
+        ])
+        await openApp(page)
+        // Outlines drawn over the canvas in the marking colour
+        const outlines = () =>
+            page.evaluate(() => {
+                const w = (
+                    document.querySelector("iframe") as HTMLIFrameElement
+                ).contentWindow as any
+                const pane = w.__adioEditorUi.editor.graph.view.getOverlayPane()
+                return pane.querySelectorAll('[stroke="#a86b00"]').length
+            })
+        const box = page.locator("textarea").first()
+        await box.fill("add a box")
+        await box.press("Control+Enter")
+        // One cell changed: one outline, while the untouched box has none
+        await expect.poll(outlines, { timeout: 15_000 }).toBe(1)
+        await expect.poll(outlines, { timeout: 10_000 }).toBe(0)
+        expect((await canvasState(page)).labels).toEqual(["USER BOX", "Added"])
+    })
+
     test("output cut off before any diagram tells the user and offers a retry", async ({
         page,
     }) => {

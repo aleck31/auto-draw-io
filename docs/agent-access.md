@@ -49,7 +49,7 @@ Pictures embedded in a diagram (a pasted screenshot or logo, kept in the cell st
 
 ### The user edits the diagram too
 
-The view link (`/d/<id>`) opens the diagram in its own editor page, apart from the app's canvas. The user's edits are saved there automatically, so the agent reads them with `get_diagram`.
+The view link (`/d/<id>`) opens the diagram in its own editor page, apart from the app's canvas. The user's edits are saved there automatically, so the agent reads them with `get_diagram`. When the page shows a change the agent made meanwhile, the cells it touched are outlined for a few seconds.
 
 Every accepted change raises the diagram's revision, and every result gives it. `edit_cells` takes the revision its change is based on and is refused when the diagram changed since: the agent then reads it again and redoes the change, so it never overwrites an edit it has not seen. `edit_diagram` is refused the same way when the diagram changed while the server's model drew. In the browser, a save based on an older revision is refused too, and the user chooses between loading the latest and keeping their version.
 

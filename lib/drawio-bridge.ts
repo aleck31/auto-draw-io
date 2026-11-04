@@ -10,6 +10,7 @@
  *
  * Adapted from next-ai-draw-io (lib/drawio/editor-bridge.ts, Apache-2.0).
  */
+import { diffPageModels } from "@/lib/diagram-diff"
 
 type EditorUi = any
 type FrameWindow = any
@@ -81,6 +82,7 @@ export function attachEditor(editorUi: EditorUi, frameWindow: FrameWindow) {
 }
 
 export function detachEditor() {
+    clearHighlights()
     ui = null
     win = null
     previewBase = null
@@ -399,6 +401,7 @@ function isEmptyModel(): boolean {
 
 /** Show a streaming preview without touching the undo history; locks the canvas */
 export function previewDiagram(xml: string) {
+    clearHighlights()
     if (previewBase === null) previewBase = currentFileXml() ?? ""
     setLocked(true)
     const wasEmpty = isEmptyModel()
@@ -413,6 +416,8 @@ export function previewDiagram(xml: string) {
 export function commitDiagram(xml: string) {
     const wasEmpty = isEmptyModel()
     const base = previewBase ? pageModelOf(previewBase) : null
+    // The page before this change, for marking what it touched
+    const before = base ?? pageModelOf(currentFileXml() ?? "")
     previewBase = null
     setLocked(false)
     // draw.io's ReplaceDiagram change keeps the document it replaced for
@@ -438,6 +443,9 @@ export function commitDiagram(xml: string) {
         model?.endUpdate()
     }
     if (wasEmpty) fitDiagram()
+    const { touchedIds, fromScratch } = diffPageModels(before, pageModelOf(xml))
+    // A whole new diagram needs no marking
+    if (!fromScratch) highlightCellsSoon(touchedIds)
 }
 
 /** Commit what the canvas shows now (a stopped stream), as one undo step */
@@ -518,4 +526,75 @@ export function missingInternals(): string[] {
     return Object.entries(checks)
         .filter(([, value]) => typeof value !== "function")
         .map(([name]) => name)
+}
+
+// ---------------------------------------------------------------------------
+// Marking the cells an AI change touched
+// ---------------------------------------------------------------------------
+
+// The outline stays this long, then fades out
+const HIGHLIGHT_MS = 3000
+const FADE_MS = 400
+// Soft halo for shapes, and an outline dark enough for white paper and pale fills
+const HALO_COLOR = "#ffd84d"
+const OUTLINE_COLOR = "#a86b00"
+
+let highlights: any[] = []
+let highlightTimer: ReturnType<typeof setTimeout> | null = null
+
+/** Removes the marking of the last change (also one still to come) */
+export function clearHighlights() {
+    if (highlightTimer) clearTimeout(highlightTimer)
+    highlightTimer = null
+    for (const h of highlights) {
+        try {
+            h.destroy()
+        } catch {
+            // ignore
+        }
+    }
+    highlights = []
+}
+
+/**
+ * Marks cells for a few seconds, once draw.io has drawn them: shapes get a
+ * halo and an outline, connectors the outline only (a halo would cover their
+ * labels and arrows). Drawn over the canvas, never part of the diagram.
+ */
+function highlightCellsSoon(ids: string[]) {
+    clearHighlights()
+    if (ids.length === 0) return
+    highlightTimer = setTimeout(() => {
+        highlightTimer = null
+        const g = graph()
+        if (!g || typeof win?.mxCellHighlight !== "function") return
+        const add = (
+            state: any,
+            color: string,
+            width: number,
+            opacity: number,
+        ) => {
+            const h = new win.mxCellHighlight(g, color, width)
+            h.opacity = opacity
+            h.highlight(state)
+            highlights.push(h)
+        }
+        for (const id of ids.slice(0, 200)) {
+            const cell = g.model.getCell(id)
+            const state = cell ? g.view.getState(cell) : null
+            if (!state) continue
+            if (!g.model.isEdge(cell)) add(state, HALO_COLOR, 8, 35)
+            add(state, OUTLINE_COLOR, 2, 100)
+        }
+        if (highlights.length === 0) return
+        highlightTimer = setTimeout(() => {
+            for (const h of highlights) {
+                const node = h.shape?.node as SVGElement | undefined
+                if (!node) continue
+                node.style.transition = `opacity ${FADE_MS}ms`
+                node.style.opacity = "0"
+            }
+            highlightTimer = setTimeout(clearHighlights, FADE_MS)
+        }, HIGHLIGHT_MS)
+    }, 60)
 }
