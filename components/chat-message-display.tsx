@@ -29,6 +29,7 @@ import {
 import { ReplyUsageNote } from "@/components/reply-usage"
 import { SelectionChip } from "@/components/selection-chip"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { VersionCard } from "@/components/version-card"
 import { aiPageModel, placeOnAiPage } from "@/lib/ai-page"
 import { getApiEndpoint } from "@/lib/base-path"
 import { validateEachPage } from "@/lib/diagram-pages"
@@ -233,7 +234,7 @@ export function ChatMessageDisplay({
     status = "idle",
     isRestored = false,
 }: ChatMessageDisplayProps) {
-    const { chartXML, loadDiagram: onDisplayChart } = useDiagram()
+    const { chartXML, loadDiagram: onDisplayChart, versions } = useDiagram()
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const previousXML = useRef<string>("")
     const processedToolCalls = processedToolCallsRef
@@ -718,6 +719,8 @@ export function ChatMessageDisplay({
         // Default to collapsed if tool is complete, expanded if still streaming
         const isExpanded = expandedTools[callId] ?? state !== "output-available"
         const toolName = part.type?.replace("tool-", "")
+        // The diagram this call put on the canvas
+        const version = versions.find((v) => v.id === callId)
 
         const toggleExpanded = () => {
             setExpandedTools((prev) => ({
@@ -800,6 +803,14 @@ export function ChatMessageDisplay({
                         )}
                     </div>
                 </div>
+                {version && (
+                    <VersionCard
+                        version={version}
+                        disabled={
+                            status === "streaming" || status === "submitted"
+                        }
+                    />
+                )}
                 {input && isExpanded && (
                     <div className="px-4 py-3 border-t border-border/40 bg-muted/20">
                         {typeof input === "object" && input.xml ? (

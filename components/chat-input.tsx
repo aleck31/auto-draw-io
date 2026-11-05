@@ -12,8 +12,8 @@ import type React from "react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { ButtonWithTooltip } from "@/components/button-with-tooltip"
+import { CompareDialog } from "@/components/compare-dialog"
 import { ErrorToast } from "@/components/error-toast"
-import { HistoryDialog } from "@/components/history-dialog"
 import { ModelSelector } from "@/components/model-selector"
 import { SaveDialog } from "@/components/save-dialog"
 import { SelectionChip } from "@/components/selection-chip"
@@ -160,8 +160,6 @@ interface ChatInputProps {
         File,
         { text: string; charCount: number; isExtracting: boolean }
     >
-    showHistory?: boolean
-    onToggleHistory?: (show: boolean) => void
     sessionId?: string
     error?: Error | null
     // Model selector props
@@ -186,8 +184,6 @@ export function ChatInput({
     files = [],
     onFileChange = () => {},
     pdfData = new Map(),
-    showHistory = false,
-    onToggleHistory = () => {},
     sessionId,
     error = null,
     models = [],
@@ -203,7 +199,8 @@ export function ChatInput({
     const dict = useDictionary()
     const {
         chartXML,
-        diagramHistory,
+        versions,
+        openCompare,
         saveDiagramToFile,
         showSaveDialog,
         setShowSaveDialog,
@@ -389,17 +386,17 @@ export function ChatInput({
 
                 <div className="flex items-center justify-between px-3 py-2 border-t border-border/50">
                     <div className="flex shrink-0 items-center gap-1">
-                        <HistoryDialog
-                            showHistory={showHistory}
-                            onToggleHistory={onToggleHistory}
-                        />
+                        <CompareDialog disabled={isDisabled} />
                         <ButtonWithTooltip
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => onToggleHistory(true)}
-                            disabled={isDisabled || diagramHistory.length === 0}
+                            onClick={() =>
+                                openCompare(versions.at(-1)?.id ?? null)
+                            }
+                            disabled={versions.length === 0}
                             tooltipContent={dict.chat.diagramHistory}
+                            aria-label={dict.chat.diagramHistory}
                             className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                         >
                             <History className="h-4 w-4" />

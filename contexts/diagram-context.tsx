@@ -6,14 +6,22 @@ import {
     useCallback,
     useContext,
     useEffect,
+    useMemo,
     useRef,
     useState,
 } from "react"
 import { STORAGE_DIAGRAM_XML_KEY } from "@/components/chat-panel"
 import type { DrawioFrameHandle } from "@/components/drawio-frame"
 import type { ExportFormat } from "@/components/save-dialog"
+import { getAiPageId } from "@/lib/ai-page"
 import { getApiEndpoint } from "@/lib/base-path"
-import { uncompressPages, validateEachPage } from "@/lib/diagram-pages"
+import { diffPageModels } from "@/lib/diagram-diff"
+import { diagramFingerprint } from "@/lib/diagram-fingerprint"
+import {
+    pageModelXml,
+    uncompressPages,
+    validateEachPage,
+} from "@/lib/diagram-pages"
 import {
     canReplaceDiagram,
     commitDiagram,
@@ -25,6 +33,13 @@ import {
     revertPreview,
     selectPage,
 } from "@/lib/drawio-bridge"
+import {
+    type DiagramVersion,
+    loadVersions,
+    MAX_VERSIONS,
+    storeVersions,
+    thumbnailOf,
+} from "@/lib/versions"
 import {
     extractDiagramXML,
     isRealDiagram,
@@ -51,7 +66,19 @@ export interface LoadOptions {
 interface DiagramContextType {
     chartXML: string
     latestSvg: string
-    diagramHistory: { svg: string; xml: string }[]
+    /** Each AI change that landed on the canvas, oldest first */
+    versions: DiagramVersion[]
+    /** The newest version the canvas shows now, if any */
+    onCanvasVersionId: string | null
+    /** Put a version on the canvas, as one undo step */
+    restoreVersion: (id: string) => void
+    /** Drop the versions of tool calls no longer in the chat */
+    keepVersionsOf: (toolCallIds: Set<string>) => void
+    /** The version the compare dialog shows; null when it is closed */
+    compareVersionId: string | null
+    openCompare: (id: string | null) => void
+    /** The canvas as an SVG data URL ("" when it could not be exported) */
+    captureSvg: () => Promise<string>
     loadDiagram: (
         chart: string,
         skipValidation?: boolean,
@@ -62,7 +89,6 @@ interface DiagramContextType {
     /** An AI turn started (true) or ended (false); ending commits a leftover preview */
     setAiTurnActive: (active: boolean) => void
     handleExport: () => void
-    handleExportWithoutHistory: () => void
     resolverRef: React.Ref<((value: string) => void) | null>
     drawioRef: React.Ref<DrawioFrameHandle | null>
     handleDiagramExport: (data: any) => void
@@ -87,17 +113,20 @@ const DiagramContext = createContext<DiagramContextType | undefined>(undefined)
 export function DiagramProvider({ children }: { children: React.ReactNode }) {
     const [chartXML, setChartXML] = useState<string>("")
     const [latestSvg, setLatestSvg] = useState<string>("")
-    const [diagramHistory, setDiagramHistory] = useState<
-        { svg: string; xml: string }[]
-    >([])
+    // The canvas now, for code that runs before the next render
+    const chartXMLRef = useRef("")
+    chartXMLRef.current = chartXML
+    const [versions, setVersions] = useState<DiagramVersion[]>([])
+    const [compareVersionId, openCompare] = useState<string | null>(null)
     const [isDrawioReady, setIsDrawioReady] = useState(false)
     const [canSaveDiagram, setCanSaveDiagram] = useState(false)
     const [showSaveDialog, setShowSaveDialog] = useState(false)
     const hasCalledOnLoadRef = useRef(false)
     const drawioRef = useRef<DrawioFrameHandle | null>(null)
     const resolverRef = useRef<((value: string) => void) | null>(null)
-    // Track if we're expecting an export for history (user-initiated)
-    const expectHistoryExportRef = useRef<boolean>(false)
+    // The canvas before each streaming tool call's first preview
+    const aiBasesRef = useRef<Map<string, string>>(new Map())
+    const svgWaitersRef = useRef<((svg: string) => void)[]>([])
     // Track if diagram has been restored from localStorage
     const hasDiagramRestoredRef = useRef<boolean>(false)
 
@@ -182,23 +211,101 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
     }>({ resolver: null, format: null })
 
     const handleExport = () => {
-        if (drawioRef.current) {
-            // Mark that this export should be saved to history
-            expectHistoryExportRef.current = true
-            drawioRef.current.exportDiagram({
-                format: "xmlsvg",
-            })
-        }
+        drawioRef.current?.exportDiagram({ format: "xmlsvg" })
     }
 
-    const handleExportWithoutHistory = () => {
-        if (drawioRef.current) {
-            // Export without saving to history (for edit_diagram fetching current state)
-            drawioRef.current.exportDiagram({
-                format: "xmlsvg",
-            })
-        }
+    const captureSvg = (): Promise<string> =>
+        new Promise((resolve) => {
+            if (!drawioRef.current) {
+                resolve("")
+                return
+            }
+            const waiter = (svg: string) => {
+                clearTimeout(timeout)
+                resolve(svg)
+            }
+            const timeout = setTimeout(() => {
+                svgWaitersRef.current = svgWaitersRef.current.filter(
+                    (w) => w !== waiter,
+                )
+                resolve("")
+            }, 5000)
+            svgWaitersRef.current.push(waiter)
+            drawioRef.current.exportDiagram({ format: "xmlsvg" })
+        })
+
+    // Versions are kept with the chat
+    const versionsLoadedRef = useRef(false)
+    useEffect(() => {
+        setVersions(loadVersions())
+        versionsLoadedRef.current = true
+    }, [])
+    useEffect(() => {
+        if (!versionsLoadedRef.current) return
+        const timeout = setTimeout(() => storeVersions(versions), 500)
+        return () => clearTimeout(timeout)
+    }, [versions])
+
+    const addVersion = (id: string, beforeXml: string, afterXml: string) => {
+        const pageId = getAiPageId()
+        const { fromScratch, summary } = diffPageModels(
+            pageModelXml(beforeXml, pageId),
+            pageModelXml(afterXml, pageId),
+        )
+        setVersions((prev) => {
+            if (prev.some((v) => v.id === id)) return prev
+            const number = (prev.at(-1)?.number ?? 0) + 1
+            const version = {
+                id,
+                number,
+                xml: afterXml,
+                pageId,
+                fromScratch,
+                summary,
+            }
+            return [...prev, version].slice(-MAX_VERSIONS)
+        })
     }
+
+    /** Called once the version is on the canvas, or its full load is queued */
+    const addThumbnail = (id: string) => {
+        captureSvg().then((svg) =>
+            setVersions((prev) =>
+                prev.map((v) =>
+                    v.id === id
+                        ? { ...v, svg: svg ? thumbnailOf(svg) : "" }
+                        : v,
+                ),
+            ),
+        )
+    }
+
+    const fingerprintsRef = useRef<Map<string, string>>(new Map())
+    const onCanvasVersionId = useMemo(() => {
+        if (!chartXML) return null
+        const now = diagramFingerprint(chartXML)
+        for (let i = versions.length - 1; i >= 0; i--) {
+            const { id, xml } = versions[i]
+            let fingerprint = fingerprintsRef.current.get(id)
+            if (fingerprint === undefined) {
+                fingerprint = diagramFingerprint(xml)
+                fingerprintsRef.current.set(id, fingerprint)
+            }
+            if (fingerprint === now) return id
+        }
+        return null
+    }, [versions, chartXML])
+
+    const restoreVersion = (id: string) => {
+        const version = versions.find((v) => v.id === id)
+        if (!version || aiTurnActiveRef.current) return
+        // Trusted: it passed validation when the AI made it
+        loadDiagram(version.xml, true, { mode: "commit" })
+    }
+
+    const keepVersionsOf = useCallback((toolCallIds: Set<string>) => {
+        setVersions((prev) => prev.filter((v) => toolCallIds.has(v.id)))
+    }, [])
 
     // Save current diagram to localStorage (used before theme/UI changes)
     const saveDiagramToStorage = async (): Promise<void> => {
@@ -236,6 +343,13 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
             if (mode !== "open") return null
         }
         if (mode === "preview" && !aiTurnActiveRef.current) return null
+        if (
+            mode === "preview" &&
+            toolCallId &&
+            !aiBasesRef.current.has(toolCallId)
+        ) {
+            aiBasesRef.current.set(toolCallId, chartXMLRef.current)
+        }
 
         let xmlToLoad = chart
 
@@ -259,11 +373,19 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
             }
         }
 
-        // Keep chartXML in sync even when diagrams are injected (e.g., display_diagram tool)
-        setChartXML(xmlToLoad)
         if (mode === "commit" && toolCallId) {
             committedToolCallsRef.current.add(toolCallId)
+            addVersion(
+                toolCallId,
+                aiBasesRef.current.get(toolCallId) ?? chartXMLRef.current,
+                xmlToLoad,
+            )
+            aiBasesRef.current.delete(toolCallId)
         }
+        // Keep chartXML in sync even when diagrams are injected (e.g., display_diagram tool)
+        setChartXML(xmlToLoad)
+        chartXMLRef.current = xmlToLoad
+        const newVersionId = mode === "commit" ? toolCallId : undefined
         let applied = false
         if (
             mode !== "open" &&
@@ -289,12 +411,17 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
                 xml: xmlToLoad,
             })
         }
+        // The export is answered after the load before it
+        if (newVersionId) addThumbnail(newVersionId)
 
         return null
     }
 
     const revertAiPreview = (toolCallId?: string) => {
-        if (toolCallId) committedToolCallsRef.current.add(toolCallId)
+        if (toolCallId) {
+            committedToolCallsRef.current.add(toolCallId)
+            aiBasesRef.current.delete(toolCallId)
+        }
         const base = revertPreview()
         if (base) setChartXML(base)
     }
@@ -326,9 +453,16 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
     }, [])
 
     const handleDiagramExport = (data: any) => {
+        // draw.io answers an xmlsvg export as "svg"
+        const isSvg = data.format === "svg" || data.format === "xmlsvg"
+        if (isSvg && svgWaitersRef.current.length > 0) {
+            const waiters = svgWaitersRef.current
+            svgWaitersRef.current = []
+            for (const waiter of waiters) waiter(data.data)
+        }
         // Handle save to file if requested (process raw data before extraction).
         // A PNG capture only takes a PNG export: an xmlsvg export asked for
-        // just before (the history snapshot after an AI edit) can land first.
+        // just before (the thumbnail of an AI change) can land first.
         const pending = saveResolverRef.current
         if (
             pending.resolver &&
@@ -353,24 +487,6 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         const fullXML = data.xml ? uncompressPages(data.xml) : extractedXML
         setLatestSvg(data.data)
 
-        // Only add to history if this was a user-initiated export
-        // Limit to 20 entries to prevent memory leaks during long sessions
-        const MAX_HISTORY_SIZE = 20
-        if (expectHistoryExportRef.current) {
-            setDiagramHistory((prev) => {
-                const newHistory = [
-                    ...prev,
-                    {
-                        svg: data.data,
-                        xml: fullXML,
-                    },
-                ]
-                // Keep only the last MAX_HISTORY_SIZE entries (circular buffer)
-                return newHistory.slice(-MAX_HISTORY_SIZE)
-            })
-            expectHistoryExportRef.current = false
-        }
-
         if (resolverRef.current) {
             resolverRef.current(fullXML)
             resolverRef.current = null
@@ -393,7 +509,8 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         // Skip validation for trusted internal template (loadDiagram also sets chartXML)
         loadDiagram(emptyDiagram, true)
         setLatestSvg("")
-        setDiagramHistory([])
+        setVersions([])
+        aiBasesRef.current.clear()
     }
 
     // Capture current diagram as PNG base64 data URL
@@ -523,12 +640,17 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
             value={{
                 chartXML,
                 latestSvg,
-                diagramHistory,
+                versions,
+                onCanvasVersionId,
+                restoreVersion,
+                keepVersionsOf,
+                compareVersionId,
+                openCompare,
+                captureSvg,
                 loadDiagram,
                 revertAiPreview,
                 setAiTurnActive,
                 handleExport,
-                handleExportWithoutHistory,
                 resolverRef,
                 drawioRef,
                 handleDiagramExport,

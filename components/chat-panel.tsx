@@ -41,6 +41,7 @@ import { isPdfFile, isTextFile } from "@/lib/pdf-utils"
 import { type SelectedCell, selectionOf } from "@/lib/selection"
 import { type FileData, useFileProcessor } from "@/lib/use-file-processor"
 import { cn, formatXML } from "@/lib/utils"
+import { toolCallIdsOf } from "@/lib/versions"
 import { ChatMessageDisplay } from "./chat-message-display"
 
 // localStorage keys for persistence
@@ -138,7 +139,7 @@ export default function ChatPanel({
         revertAiPreview,
         setAiTurnActive,
         handleExport: onExport,
-        handleExportWithoutHistory,
+        keepVersionsOf,
         resolverRef,
         chartXML,
         clearDiagram,
@@ -149,17 +150,13 @@ export default function ChatPanel({
     // handleRegenerate is defined below useChat, whose callbacks need it
     const regenerateRef = useRef<(messageIndex: number) => void>(() => {})
 
-    const onFetchChart = (saveToHistory = true) => {
+    const onFetchChart = () => {
         return Promise.race([
             new Promise<string>((resolve) => {
                 if (resolverRef && "current" in resolverRef) {
                     resolverRef.current = resolve
                 }
-                if (saveToHistory) {
-                    onExport()
-                } else {
-                    handleExportWithoutHistory()
-                }
+                onExport()
             }),
             new Promise<string>((_, reject) =>
                 setTimeout(
@@ -178,7 +175,6 @@ export default function ChatPanel({
     // File processing using extracted hook
     const { files, pdfData, handleFileChange, setFiles } = useFileProcessor()
 
-    const [showHistory, setShowHistory] = useState(false)
     const [showSettingsDialog, setShowSettingsDialog] = useState(false)
     const [showModelConfigDialog, setShowModelConfigDialog] = useState(false)
 
@@ -288,7 +284,6 @@ export default function ChatPanel({
         onDisplayChart,
         onRevertPreview: revertAiPreview,
         onFetchChart,
-        onExport,
         capturePng,
         onScreenshotAttached: () => {
             screenshotPendingRef.current = true
@@ -974,6 +969,7 @@ export default function ChatPanel({
         flushSync(() => {
             setMessages(newMessages)
         })
+        keepVersionsOf(toolCallIdsOf(newMessages))
 
         // Now send the message after state is guaranteed to be updated
         sendChatMessage(
@@ -1022,6 +1018,7 @@ export default function ChatPanel({
         flushSync(() => {
             setMessages(newMessages)
         })
+        keepVersionsOf(toolCallIdsOf(newMessages))
 
         // Now send the edited message after state is guaranteed to be updated
         sendChatMessage(
@@ -1186,8 +1183,6 @@ export default function ChatPanel({
                     files={files}
                     onFileChange={handleFileChange}
                     pdfData={pdfData}
-                    showHistory={showHistory}
-                    onToggleHistory={setShowHistory}
                     sessionId={sessionId}
                     error={error}
                     models={modelConfig.models}

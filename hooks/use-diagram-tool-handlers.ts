@@ -57,8 +57,7 @@ interface UseDiagramToolHandlersParams {
     ) => string | null
     /** Put the canvas back as it was before this tool call's previews */
     onRevertPreview: (toolCallId?: string) => void
-    onFetchChart: (saveToHistory?: boolean) => Promise<string>
-    onExport: () => void
+    onFetchChart: () => Promise<string>
     capturePng?: () => Promise<string>
     /** A screenshot was attached to a tool result: the model should see it */
     onScreenshotAttached?: () => void
@@ -104,7 +103,6 @@ export function useDiagramToolHandlers({
     onDisplayChart,
     onRevertPreview,
     onFetchChart,
-    onExport,
     capturePng,
     onScreenshotAttached,
     onModelCanvas,
@@ -335,7 +333,7 @@ ${finalXml}
                     currentXml = cachedXML
                 } else {
                     // Last resort: export from iframe
-                    currentXml = await onFetchChart(false)
+                    currentXml = await onFetchChart()
                 }
             }
 
@@ -413,7 +411,6 @@ Please fix the operations to avoid structural issues.`,
                 editDiagramOriginalXmlRef.current.delete(toolCall.toolCallId)
                 return
             }
-            onExport()
             if ("xml" in placed) onModelCanvas?.(placed.xml, !placed.fixed)
             addToolOutput({
                 tool: "edit_diagram",
